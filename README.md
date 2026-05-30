@@ -93,4 +93,3 @@ Tools and integrations built by the community around 3x-ui.
 ## Stargazers over Time
 
 [![Stargazers over time](https://starchart.cc/MHSanaei/3x-ui.svg?variant=adaptive)](https://starchart.cc/MHSanaei/3x-ui)
-"# 3x-ui" 
