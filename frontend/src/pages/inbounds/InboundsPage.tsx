@@ -41,6 +41,7 @@ const QrCodeModal = lazy(() => import('./QrCodeModal'));
 const AttachClientsModal = lazy(() => import('./AttachClientsModal'));
 const DetachClientsModal = lazy(() => import('./DetachClientsModal'));
 const AddClientsToGroupModal = lazy(() => import('./AddClientsToGroupModal'));
+const RelayWizardModal = lazy(() => import('./RelayWizardModal'));
 
 type RowAction =
   | 'edit'
@@ -117,6 +118,7 @@ export default function InboundsPage() {
   });
 
   const [formOpen, setFormOpen] = useState(false);
+  const [relayOpen, setRelayOpen] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
   const [formDbInbound, setFormDbInbound] = useState<DBInbound | null>(null);
 
@@ -335,6 +337,10 @@ export default function InboundsPage() {
     setFormMode('add');
     setFormDbInbound(null);
     setFormOpen(true);
+  }, []);
+
+  const onRelay = useCallback(() => {
+    setRelayOpen(true);
   }, []);
 
   const openEdit = useCallback((dbInbound: DBInbound) => {
@@ -565,6 +571,7 @@ export default function InboundsPage() {
                       nodesById={nodesById}
                       hasActiveNode={showNodeInfo}
                       onAddInbound={onAddInbound}
+                      onRelay={onRelay}
                       onGeneralAction={onGeneralAction}
                       onRowAction={({ key, dbInbound }) => onRowAction({ key, dbInbound: dbInbound as unknown as DBInbound })}
                     />
@@ -584,6 +591,13 @@ export default function InboundsPage() {
             dbInbound={formDbInbound}
             dbInbounds={dbInbounds}
             availableNodes={nodesList}
+          />
+        </LazyMount>
+        <LazyMount when={relayOpen}>
+          <RelayWizardModal
+            open={relayOpen}
+            onClose={() => setRelayOpen(false)}
+            onCreated={refresh}
           />
         </LazyMount>
         <LazyMount when={infoOpen}>
