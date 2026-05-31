@@ -1,6 +1,7 @@
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Button,
   Card,
   Col,
   ConfigProvider,
@@ -9,6 +10,7 @@ import {
   Row,
   Spin,
   Statistic,
+  Typography,
   message,
 } from 'antd';
 
@@ -571,10 +573,28 @@ export default function InboundsPage() {
                       nodesById={nodesById}
                       hasActiveNode={showNodeInfo}
                       onAddInbound={onAddInbound}
-                      onRelay={onRelay}
                       onGeneralAction={onGeneralAction}
                       onRowAction={({ key, dbInbound }) => onRowAction({ key, dbInbound: dbInbound as unknown as DBInbound })}
                     />
+                  </Col>
+
+                  <Col span={24}>
+                    <Card size="small" hoverable>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 220 }}>
+                          <Typography.Text strong>
+                            <SwapOutlined style={{ marginInlineEnd: 8 }} />
+                            {t('pages.inbounds.relay.title', { defaultValue: '新建中转' })}
+                          </Typography.Text>
+                          <Typography.Paragraph type="secondary" style={{ margin: '4px 0 0', fontSize: 12 }}>
+                            {t('pages.inbounds.relay.cardHint', { defaultValue: '用户连本机入口，流量经本机转发到落地服务器后出网（中转机 + 落地 IP）。' })}
+                          </Typography.Paragraph>
+                        </div>
+                        <Button type="primary" icon={<SwapOutlined />} onClick={onRelay}>
+                          {t('pages.inbounds.relay.title', { defaultValue: '新建中转' })}
+                        </Button>
+                      </div>
+                    </Card>
                   </Col>
                 </Row>
               )}

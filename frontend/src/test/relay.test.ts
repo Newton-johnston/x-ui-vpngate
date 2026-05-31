@@ -8,6 +8,7 @@ import {
   buildRelayRule,
   landingOutboundFromLink,
   landingOutboundFromManual,
+  parseLandingEndpoint,
   uniqueOutboundTag,
   type LandingManualInput,
 } from '@/lib/xray/relay';
@@ -92,6 +93,34 @@ describe('relay entry inbound payload', () => {
     const payload = buildRelayInboundPayload(RELAY_ENTRY_PRESETS[0], { port: 20000 });
     const settings = JSON.parse(payload.settings) as { clients: unknown[] };
     expect(settings.clients).toHaveLength(1);
+  });
+});
+
+describe('parseLandingEndpoint', () => {
+  it('parses host:port', () => {
+    expect(parseLandingEndpoint('1.2.3.4:1080')).toEqual({ address: '1.2.3.4', port: 1080 });
+  });
+  it('parses host:port:user:pass (residential 4-tuple)', () => {
+    expect(parseLandingEndpoint('178.210.253.190:12324:14a6a331454a2:8d9f8f7cc3')).toEqual({
+      address: '178.210.253.190', port: 12324, user: '14a6a331454a2', pass: '8d9f8f7cc3',
+    });
+  });
+  it('parses user:pass@host:port', () => {
+    expect(parseLandingEndpoint('u:p@1.2.3.4:1080')).toEqual({
+      address: '1.2.3.4', port: 1080, user: 'u', pass: 'p',
+    });
+  });
+  it('parses bracketed IPv6 host:port', () => {
+    expect(parseLandingEndpoint('[2001:db8::1]:1080')).toEqual({ address: '2001:db8::1', port: 1080 });
+  });
+  it('returns null for a bare hostname (no port)', () => {
+    expect(parseLandingEndpoint('example.com')).toBeNull();
+  });
+  it('returns null for a share link (handled elsewhere)', () => {
+    expect(parseLandingEndpoint('vless://uuid@host:443')).toBeNull();
+  });
+  it('rejects an invalid port', () => {
+    expect(parseLandingEndpoint('1.2.3.4:99999')).toBeNull();
   });
 });
 

@@ -16,7 +16,6 @@ import {
 } from 'antd';
 import {
   PlusOutlined,
-  SwapOutlined,
   MenuOutlined,
   MoreOutlined,
   EditOutlined,
@@ -189,7 +188,6 @@ interface InboundListProps {
   nodesById: Map<number, NodeRecord>;
   hasActiveNode: boolean;
   onAddInbound: () => void;
-  onRelay: () => void;
   onGeneralAction: (key: GeneralAction) => void;
   onRowAction: (action: { key: RowAction; dbInbound: DBInboundRecord }) => void;
 }
@@ -305,7 +303,6 @@ export default function InboundList({
   nodesById,
   hasActiveNode,
   onAddInbound,
-  onRelay,
   onGeneralAction,
   onRowAction,
 }: InboundListProps) {
@@ -605,9 +602,6 @@ export default function InboundList({
         <Space>
           <Button type="primary" onClick={onAddInbound} icon={<PlusOutlined />}>
             {!isMobile && t('pages.inbounds.addInbound')}
-          </Button>
-          <Button onClick={onRelay} icon={<SwapOutlined />}>
-            {!isMobile && t('pages.inbounds.relay.title', { defaultValue: '新建中转' })}
           </Button>
           <Dropdown trigger={['click']} menu={generalActionsMenu}>
             <Button type="primary" icon={<MenuOutlined />}>

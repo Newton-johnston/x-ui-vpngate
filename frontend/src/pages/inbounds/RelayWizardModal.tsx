@@ -10,6 +10,7 @@ import {
   buildRelayRule,
   landingOutboundFromLink,
   landingOutboundFromManual,
+  parseLandingEndpoint,
   uniqueOutboundTag,
   type LandingManualInput,
   type LandingProtocol,
@@ -91,6 +92,22 @@ export default function RelayWizardModal({ open, onClose, onCreated }: RelayWiza
     () => RELAY_ENTRY_PRESETS.find((p) => p.id === entryPresetId) ?? RELAY_ENTRY_PRESETS[0],
     [entryPresetId],
   );
+
+  // When the user pastes into the landing-address box, try to auto-split a
+  // host:port[:user:pass] or user:pass@host:port endpoint into the separate
+  // fields. A plain hostname just sets the address. Recognized creds also
+  // fill user/pass (for SOCKS/HTTP landings).
+  const onLandingAddressChange = (value: string) => {
+    const parsed = parseLandingEndpoint(value);
+    if (!parsed) {
+      setAddress(value);
+      return;
+    }
+    setAddress(parsed.address);
+    if (parsed.port) setLandingPort(parsed.port);
+    if (parsed.user !== undefined) setUser(parsed.user);
+    if (parsed.pass !== undefined) setPass(parsed.pass);
+  };
 
   // Build the landing outbound (with a finalized unique tag) from the current
   // inputs. Returns an error key when the inputs are incomplete/unparseable.
@@ -272,8 +289,15 @@ export default function RelayWizardModal({ open, onClose, onCreated }: RelayWiza
             </Form.Item>
           ) : (
             <>
-              <Form.Item label={t('pages.inbounds.relay.landingAddress', { defaultValue: '落地地址' })}>
-                <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="1.2.3.4 / host" />
+              <Form.Item
+                label={t('pages.inbounds.relay.landingAddress', { defaultValue: '落地地址' })}
+                extra={t('pages.inbounds.relay.landingAddressHint', { defaultValue: '可直接粘 host:port 或 host:port:用户名:密码，自动拆分' })}
+              >
+                <Input
+                  value={address}
+                  onChange={(e) => onLandingAddressChange(e.target.value)}
+                  placeholder="1.2.3.4  或  1.2.3.4:1080:user:pass"
+                />
               </Form.Item>
               <Form.Item label={t('pages.inbounds.relay.landingPort', { defaultValue: '落地端口' })}>
                 <InputNumber min={1} max={65535} value={landingPort} onChange={(v) => setLandingPort(Number(v) || 0)} style={{ width: 160 }} />

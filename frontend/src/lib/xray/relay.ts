@@ -37,6 +37,82 @@ export interface RelayRule {
   outboundTag: string;
 }
 
+// Parsed result of a pasted landing endpoint string. Any field may be empty
+// when the input didn't carry it. The wizard spreads these into its form.
+export interface ParsedLandingEndpoint {
+  address: string;
+  port?: number;
+  user?: string;
+  pass?: string;
+}
+
+// Parse common colon-delimited landing endpoint formats users paste for a
+// SOCKS/HTTP landing:
+//   host:port
+//   host:port:user:pass            (the residential-proxy 4-tuple)
+//   user:pass@host:port            (URL-style userinfo)
+// Bracketed IPv6 ([::1]:port) is handled. Returns null when it doesn't look
+// like an endpoint (e.g. a bare hostname or a vless:// link — those go
+// through other paths).
+export function parseLandingEndpoint(raw: string): ParsedLandingEndpoint | null {
+  const s = raw.trim();
+  if (s === '' || s.includes('://')) return null;
+
+  // user:pass@host:port
+  if (s.includes('@')) {
+    const at = s.lastIndexOf('@');
+    const creds = s.slice(0, at);
+    const hostPort = s.slice(at + 1);
+    const hp = parseHostPort(hostPort);
+    if (!hp) return null;
+    const ci = creds.indexOf(':');
+    if (ci >= 0) return { ...hp, user: creds.slice(0, ci), pass: creds.slice(ci + 1) };
+    return { ...hp, user: creds };
+  }
+
+  // Bracketed IPv6 forms — let parseHostPort handle host[:port], then any
+  // trailing :user:pass.
+  if (s.startsWith('[')) {
+    return parseHostPort(s);
+  }
+
+  const parts = s.split(':');
+  if (parts.length === 2) {
+    const port = toPort(parts[1]);
+    return port ? { address: parts[0], port } : null;
+  }
+  if (parts.length === 4) {
+    const port = toPort(parts[1]);
+    return port ? { address: parts[0], port, user: parts[2], pass: parts[3] } : null;
+  }
+  // 3+ colons without 4 parts, or a single token → not a recognizable endpoint.
+  return null;
+}
+
+function toPort(v: string): number | undefined {
+  const n = Number(v.trim());
+  return Number.isInteger(n) && n >= 1 && n <= 65535 ? n : undefined;
+}
+
+function parseHostPort(s: string): ParsedLandingEndpoint | null {
+  const t = s.trim();
+  if (t.startsWith('[')) {
+    const end = t.indexOf(']');
+    if (end < 0) return null;
+    const host = t.slice(1, end);
+    const rest = t.slice(end + 1);
+    if (rest.startsWith(':')) {
+      const port = toPort(rest.slice(1));
+      return port ? { address: host, port } : { address: host };
+    }
+    return { address: host };
+  }
+  const ci = t.lastIndexOf(':');
+  if (ci < 0) return t.length > 0 ? { address: t } : null;
+  const port = toPort(t.slice(ci + 1));
+  return port ? { address: t.slice(0, ci), port } : { address: t };
+}
+
 export interface LandingManualInput {
   protocol: LandingProtocol;
   address: string;
