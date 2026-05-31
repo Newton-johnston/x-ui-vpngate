@@ -185,7 +185,9 @@ export const INBOUND_PRESETS: readonly InboundPreset[] = [
       settings.clients = [createDefaultTrojanClient()];
       return {
         protocol: 'trojan',
-        port: 443,
+        // Random port instead of 443 so multiple TLS presets don't collide on
+        // the same port (TLS works on any port; the cert is port-agnostic).
+        port: randomPort(),
         settings,
         streamSettings: tlsStream(
           { network: 'tcp', tcpSettings: TcpStreamSettingsSchema.parse({ header: { type: 'none' } }) },
@@ -206,7 +208,9 @@ export const INBOUND_PRESETS: readonly InboundPreset[] = [
       const ws = WsStreamSettingsSchema.parse({ path: `/${RandomUtil.randomLowerAndNum(8)}` });
       return {
         protocol: 'vmess',
-        port: 443,
+        // Random port (see trojan-tls): avoids colliding with another TLS
+        // preset on 443. Behind a CDN you'd front this with 443 externally.
+        port: randomPort(),
         settings,
         streamSettings: tlsStream({ network: 'ws', wsSettings: ws }, domain),
       };
@@ -231,7 +235,7 @@ export const PRESET_FALLBACK: Record<PresetId, { title: string; desc: string }> 
   },
   hysteria2: {
     title: 'Hysteria2',
-    desc: '基于 QUIC，速度快 · 需域名与 TLS 证书',
+    desc: '基于 QUIC，速度快 · 需域名与证书 · 需 sing-box/NekoBox 客户端（Xray 内核不支持）',
   },
   'trojan-tls': {
     title: 'Trojan + TLS',
