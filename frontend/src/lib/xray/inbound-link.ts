@@ -354,13 +354,15 @@ export function genVlessLink(input: GenVlessLinkInput): string {
       const reality = stream.realitySettings;
       params.set('pbk', reality.settings.publicKey);
       params.set('fp', reality.settings.fingerprint);
-      // Legacy parity quirk: the old class stored realitySettings.serverNames
-      // as a comma-joined string and gated SNI on `!ObjectUtil.isArrEmpty(s)`
-      // — which returns true for any string, so SNI was never written into
-      // Reality share links. Existing deployed clients rely on receiving
-      // the SNI from realitySettings.target instead; we keep the omission
-      // here so this extraction stays byte-stable with the legacy URL.
-      // Fixing the bug is a separate intentional commit.
+      // SNI: Reality clients must send a camouflage SNI to complete the
+      // handshake. Prefer the first serverName; fall back to the host part
+      // of `target` (which may carry a host:port dest). Without this the
+      // share link is unusable — the client handshakes with an empty SNI
+      // and the server rejects it. (Older panel links omitted sni and
+      // relied on the user filling it manually; one-click presets need it
+      // baked in.)
+      const realitySni = realityShareSni(reality);
+      if (realitySni.length > 0) params.set('sni', realitySni);
       if (reality.shortIds.length > 0) params.set('sid', reality.shortIds[0]);
       if (reality.settings.spiderX.length > 0) params.set('spx', reality.settings.spiderX);
       if (reality.settings.mldsa65Verify.length > 0) params.set('pqv', reality.settings.mldsa65Verify);
@@ -423,13 +425,32 @@ function writeTlsParams(stream: NonNullable<Inbound['streamSettings']>, params: 
   if (tls.serverName.length > 0) params.set('sni', tls.serverName);
 }
 
-// Reality query-string writer shared by VLESS and Trojan. Preserves the
-// legacy SNI-omission quirk (see genVlessLink for the full story).
+// Pick the camouflage SNI for a Reality share link: the first configured
+// serverName, else the host part of `target` (stripping any :port and any
+// IPv6 brackets). Returns '' when neither is set.
+function realityShareSni(reality: { serverNames: string[]; target: string }): string {
+  const first = reality.serverNames.find((s) => s.trim().length > 0);
+  if (first) return first.trim();
+  const target = reality.target.trim();
+  if (target.length === 0) return '';
+  // Strip a trailing :port — but not the colons inside a bracketed IPv6.
+  if (target.startsWith('[')) {
+    const end = target.indexOf(']');
+    return end > 0 ? target.slice(1, end) : target;
+  }
+  const colon = target.lastIndexOf(':');
+  return colon > 0 ? target.slice(0, colon) : target;
+}
+
+// Reality query-string writer shared by VLESS and Trojan. Writes the
+// camouflage SNI so the link works out of the box (see genVlessLink).
 function writeRealityParams(stream: NonNullable<Inbound['streamSettings']>, params: URLSearchParams): void {
   if (stream.security !== 'reality') return;
   const reality = stream.realitySettings;
   params.set('pbk', reality.settings.publicKey);
   params.set('fp', reality.settings.fingerprint);
+  const realitySni = realityShareSni(reality);
+  if (realitySni.length > 0) params.set('sni', realitySni);
   if (reality.shortIds.length > 0) params.set('sid', reality.shortIds[0]);
   if (reality.settings.spiderX.length > 0) params.set('spx', reality.settings.spiderX);
   if (reality.settings.mldsa65Verify.length > 0) params.set('pqv', reality.settings.mldsa65Verify);

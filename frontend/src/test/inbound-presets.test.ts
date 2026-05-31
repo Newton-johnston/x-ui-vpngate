@@ -2,8 +2,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { rawInboundToFormValues } from '@/lib/xray/inbound-form-adapter';
+import { genVlessLink } from '@/lib/xray/inbound-link';
 import { INBOUND_PRESETS, getPreset } from '@/lib/xray/inbound-presets';
 import { InboundFormSchema } from '@/schemas/forms/inbound-form';
+import type { Inbound } from '@/schemas/api/inbound';
 
 // Every preset must produce a row that, once mapped to InboundFormValues,
 // passes InboundFormSchema — the exact gate the modal's submit() runs before
@@ -59,4 +61,36 @@ describe('inbound presets', () => {
     expect(vision.clients[0].flow).toBe('xtls-rprx-vision');
     expect(grpc.clients[0].flow).toBe('');
   });
+
+  // Regression: the Reality share link MUST carry sni — without it the
+  // client handshakes with an empty SNI and the server rejects it (the
+  // "imported into v2rayN, shows -1" bug). The sni must match the preset's
+  // serverName and must not leak a :port.
+  for (const id of ['vless-reality-vision', 'vless-reality-grpc'] as const) {
+    it(`${id} share link carries sni matching serverName`, () => {
+      const preset = getPreset(id)!;
+      const row = preset.build();
+      const values = rawInboundToFormValues(row) as unknown as Inbound;
+      const stream = row.streamSettings as {
+        realitySettings: { serverNames: string[]; settings: { publicKey: string } };
+      };
+      // Simulate the panel injecting the fetched public key post-apply.
+      stream.realitySettings.settings.publicKey = 'TESTPUBKEY';
+      const client = (row.settings as { clients: { id: string; flow: string }[] }).clients[0];
+
+      const link = genVlessLink({
+        inbound: values,
+        address: 'vps.example.com',
+        clientId: client.id,
+        flow: client.flow as never,
+        remark: 'preset',
+      });
+
+      const sni = new URL(link).searchParams.get('sni');
+      const expected = stream.realitySettings.serverNames[0];
+      expect(sni).toBe(expected);
+      expect(sni).not.toContain(':');
+      expect(new URL(link).searchParams.get('pbk')).toBe('TESTPUBKEY');
+    });
+  }
 });
