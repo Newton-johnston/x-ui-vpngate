@@ -197,6 +197,18 @@ export function landingOutboundFromLink(link: string, tag: string): RelayOutboun
   return outbound;
 }
 
+// Tag prefix marking an inbound as a relay entry. The backend's
+// resolveInboundTag preserves a non-empty, non-colliding tag, so this prefix
+// survives and lets both the inbound list and the client list flag relay
+// entries without any DB schema change.
+export const RELAY_ENTRY_TAG_PREFIX = 'relay-in-';
+
+// True when an inbound tag identifies a relay entry (created by the relay
+// wizard). Used to badge rows in the inbound and client lists.
+export function isRelayEntryTag(tag: string | undefined | null): boolean {
+  return typeof tag === 'string' && tag.startsWith(RELAY_ENTRY_TAG_PREFIX);
+}
+
 export interface RelayEntryOverrides {
   remark?: string;
   port?: number;
@@ -215,6 +227,10 @@ export function buildRelayInboundPayload(
   const values = rawInboundToFormValues(preset.build()) as unknown as Record<string, unknown>;
   if (ov.remark != null) values.remark = ov.remark;
   if (ov.port != null && ov.port > 0) values.port = ov.port;
+  // Tag the entry inbound so the lists can badge it as a relay. Port keeps it
+  // unique; the backend preserves this tag when it doesn't collide.
+  const taggedPort = ov.port != null && ov.port > 0 ? ov.port : (values.port as number);
+  values.tag = `${RELAY_ENTRY_TAG_PREFIX}${taggedPort}`;
 
   const stream = values.streamSettings as Record<string, unknown> | undefined;
   const reality = stream?.realitySettings as Record<string, unknown> | undefined;

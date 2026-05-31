@@ -590,6 +590,16 @@ func (s *InboundService) AddInbound(inbound *model.Inbound) (*model.Inbound, boo
 }
 
 func (s *InboundService) DelInbound(id int) (bool, error) {
+	return s.delInbound(id, false)
+}
+
+// DelInboundPurgeOrphans deletes an inbound and, when purgeOrphans is true,
+// also deletes the clients that are left attached to no inbound afterward.
+func (s *InboundService) DelInboundPurgeOrphans(id int, purgeOrphans bool) (bool, error) {
+	return s.delInbound(id, purgeOrphans)
+}
+
+func (s *InboundService) delInbound(id int, purgeOrphans bool) (bool, error) {
 	db := database.GetDB()
 
 	needRestart := false
@@ -623,6 +633,13 @@ func (s *InboundService) DelInbound(id int) (bool, error) {
 	err := db.Where("inbound_id = ?", id).Delete(xray.ClientTraffic{}).Error
 	if err != nil {
 		return false, err
+	}
+	// Optionally delete clients that would be left orphaned (attached to no
+	// other inbound). Must run BEFORE DetachInbound, while links still exist.
+	if purgeOrphans {
+		if err := s.clientService.PurgeOrphansForInbound(db, id); err != nil {
+			return false, err
+		}
 	}
 	if err := s.clientService.DetachInbound(db, id); err != nil {
 		return false, err

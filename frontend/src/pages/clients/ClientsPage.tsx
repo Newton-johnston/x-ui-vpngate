@@ -48,6 +48,7 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { isRelayEntryTag } from '@/lib/xray/relay';
 import { useClients } from '@/hooks/useClients';
 import { useDatepicker } from '@/hooks/useDatepicker';
 import type { ClientRecord, InboundOption } from '@/hooks/useClients';
@@ -301,6 +302,15 @@ export default function ClientsPage() {
     const ib = inboundsById[id];
     if (!ib) return `#${id}`;
     return ib.remark ? `${ib.remark} (${ib.protocol}:${ib.port})` : `${ib.protocol}:${ib.port}`;
+  }
+
+  // Classify a client by where it lives: bound to a relay-entry inbound →
+  // relay; bound to any normal inbound → inbound; bound to nothing →
+  // standalone. Drives the source badge in the client table.
+  function clientSource(ids: number[]): 'relay' | 'inbound' | 'standalone' {
+    if (!ids || ids.length === 0) return 'standalone';
+    const anyRelay = ids.some((id) => isRelayEntryTag(inboundsById[id]?.tag));
+    return anyRelay ? 'relay' : 'inbound';
   }
 
   const clientBucket = useCallback((row: ClientRecord | null | undefined): Bucket | null => {
@@ -663,6 +673,18 @@ export default function ClientsPage() {
             {record.group}
           </Tag>
         );
+      },
+    },
+    {
+      title: t('pages.clients.source', { defaultValue: '来源' }),
+      key: 'source',
+      width: 70,
+      align: 'center',
+      render: (_v, record) => {
+        const src = clientSource(record.inboundIds || []);
+        if (src === 'relay') return <Tag color="cyan">{t('pages.inbounds.relay.badge', { defaultValue: '中转' })}</Tag>;
+        if (src === 'inbound') return <Tag color="geekblue">{t('pages.clients.sourceInbound', { defaultValue: '入站' })}</Tag>;
+        return <Tag>{t('pages.clients.sourceStandalone', { defaultValue: '独立' })}</Tag>;
       },
     },
     {

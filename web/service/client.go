@@ -277,6 +277,66 @@ func (s *ClientService) DetachInbound(tx *gorm.DB, inboundId int) error {
 	return tx.Where("inbound_id = ?", inboundId).Delete(&model.ClientInbound{}).Error
 }
 
+// orphanClientIdsForInbound returns the ids of clients whose ONLY inbound
+// attachment is inboundId — i.e. the clients that would be left dangling
+// ("standalone") if this inbound were deleted. Call BEFORE DetachInbound,
+// while the links still exist.
+func (s *ClientService) orphanClientIdsForInbound(tx *gorm.DB, inboundId int) ([]int, error) {
+	if tx == nil {
+		tx = database.GetDB()
+	}
+	var ids []int
+	// client_ids attached to this inbound that are attached to no other inbound.
+	err := tx.Model(&model.ClientInbound{}).
+		Where("inbound_id = ?", inboundId).
+		Where("client_id NOT IN (?)",
+			tx.Model(&model.ClientInbound{}).
+				Select("client_id").
+				Where("inbound_id <> ?", inboundId)).
+		Pluck("client_id", &ids).Error
+	return ids, err
+}
+
+// CountOrphansForInbound reports how many clients would become standalone if
+// the given inbound were deleted (used to drive the delete-confirm prompt).
+func (s *ClientService) CountOrphansForInbound(inboundId int) (int, error) {
+	ids, err := s.orphanClientIdsForInbound(nil, inboundId)
+	if err != nil {
+		return 0, err
+	}
+	return len(ids), nil
+}
+
+// PurgeOrphansForInbound deletes the client records (and their traffic) that
+// are attached ONLY to inboundId. Must run BEFORE the inbound's links are
+// detached. Used when the operator opts to delete orphaned clients along with
+// the inbound.
+func (s *ClientService) PurgeOrphansForInbound(tx *gorm.DB, inboundId int) error {
+	if tx == nil {
+		tx = database.GetDB()
+	}
+	ids, err := s.orphanClientIdsForInbound(tx, inboundId)
+	if err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var emails []string
+	if err := tx.Model(&model.ClientRecord{}).Where("id IN ?", ids).Pluck("email", &emails).Error; err != nil {
+		return err
+	}
+	for _, batch := range chunkStrings(uniqueNonEmptyStrings(emails), sqliteMaxVars) {
+		if err := tx.Where("email IN ?", batch).Delete(&xray.ClientTraffic{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("client_email IN ?", batch).Delete(&model.InboundClientIps{}).Error; err != nil {
+			return err
+		}
+	}
+	return tx.Where("id IN ?", ids).Delete(&model.ClientRecord{}).Error
+}
+
 func (s *ClientService) ListForInbound(tx *gorm.DB, inboundId int) ([]model.Client, error) {
 	if tx == nil {
 		tx = database.GetDB()
@@ -1873,6 +1933,13 @@ func clientMatchesBucket(c ClientWithAttachments, bucket string, onlineSet map[s
 		nearExpiry := c.ExpiryTime > 0 && c.ExpiryTime-nowMs < expireDiffMs
 		nearLimit := c.TotalGB > 0 && c.TotalGB-used < trafficDiffBytes
 		return nearExpiry || nearLimit
+	case "attached":
+		// Client is bound to at least one inbound (e.g. created with an
+		// inbound, including one-click presets).
+		return len(c.InboundIds) > 0
+	case "unattached":
+		// Standalone client not bound to any inbound yet.
+		return len(c.InboundIds) == 0
 	}
 	return true
 }

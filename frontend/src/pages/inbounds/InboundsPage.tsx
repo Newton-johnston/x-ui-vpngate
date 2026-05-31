@@ -1,8 +1,8 @@
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button,
   Card,
+  Checkbox,
   Col,
   ConfigProvider,
   Layout,
@@ -10,7 +10,6 @@ import {
   Row,
   Spin,
   Statistic,
-  Typography,
   message,
 } from 'antd';
 
@@ -120,9 +119,9 @@ export default function InboundsPage() {
   });
 
   const [formOpen, setFormOpen] = useState(false);
-  const [relayOpen, setRelayOpen] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
   const [formDbInbound, setFormDbInbound] = useState<DBInbound | null>(null);
+  const [relayOpen, setRelayOpen] = useState(false);
 
   const [infoOpen, setInfoOpen] = useState(false);
   const [infoDbInbound, setInfoDbInbound] = useState<DBInbound | null>(null);
@@ -351,15 +350,43 @@ export default function InboundsPage() {
     setFormOpen(true);
   }, []);
 
-  const confirmDelete = useCallback((dbInbound: DBInbound) => {
+  const confirmDelete = useCallback(async (dbInbound: DBInbound) => {
+    // Ask the backend how many clients would be left attached to no inbound
+    // if this one is deleted, so we can offer to purge them via a checkbox.
+    let orphanCount = 0;
+    const cnt = await HttpUtil.get(`/panel/api/inbounds/${dbInbound.id}/orphanCount`, undefined, { silent: true });
+    if (cnt?.success && typeof cnt.obj === 'number') orphanCount = cnt.obj;
+
+    // Closure flag toggled by the in-modal checkbox; read on confirm.
+    let purgeClients = false;
+
+    const content = orphanCount > 0 ? (
+      <div>
+        <div>{t('pages.inbounds.deleteConfirmContent')}</div>
+        <Checkbox
+          style={{ marginTop: 12 }}
+          defaultChecked={false}
+          onChange={(e) => { purgeClients = e.target.checked; }}
+        >
+          {t('pages.inbounds.deleteOrphanCheckbox', {
+            count: orphanCount,
+            defaultValue: `同时删除将不再属于任何入站的 {count} 个客户端`,
+          })}
+        </Checkbox>
+      </div>
+    ) : (
+      t('pages.inbounds.deleteConfirmContent')
+    );
+
     modal.confirm({
       title: t('pages.inbounds.deleteConfirmTitle', { remark: dbInbound.remark }),
-      content: t('pages.inbounds.deleteConfirmContent'),
+      content,
       okText: t('delete'),
       okType: 'danger',
       cancelText: t('cancel'),
       onOk: async () => {
-        const msg = await HttpUtil.post(`/panel/api/inbounds/del/${dbInbound.id}`);
+        const url = `/panel/api/inbounds/del/${dbInbound.id}${purgeClients ? '?purgeClients=true' : ''}`;
+        const msg = await HttpUtil.post(url);
         if (msg?.success) await refresh();
       },
     });
@@ -573,28 +600,10 @@ export default function InboundsPage() {
                       nodesById={nodesById}
                       hasActiveNode={showNodeInfo}
                       onAddInbound={onAddInbound}
+                      onRelay={onRelay}
                       onGeneralAction={onGeneralAction}
                       onRowAction={({ key, dbInbound }) => onRowAction({ key, dbInbound: dbInbound as unknown as DBInbound })}
                     />
-                  </Col>
-
-                  <Col span={24}>
-                    <Card size="small" hoverable>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                        <div style={{ flex: 1, minWidth: 220 }}>
-                          <Typography.Text strong>
-                            <SwapOutlined style={{ marginInlineEnd: 8 }} />
-                            {t('pages.inbounds.relay.title', { defaultValue: '新建中转' })}
-                          </Typography.Text>
-                          <Typography.Paragraph type="secondary" style={{ margin: '4px 0 0', fontSize: 12 }}>
-                            {t('pages.inbounds.relay.cardHint', { defaultValue: '用户连本机入口，流量经本机转发到落地服务器后出网（中转机 + 落地 IP）。' })}
-                          </Typography.Paragraph>
-                        </div>
-                        <Button type="primary" icon={<SwapOutlined />} onClick={onRelay}>
-                          {t('pages.inbounds.relay.title', { defaultValue: '新建中转' })}
-                        </Button>
-                      </div>
-                    </Card>
                   </Col>
                 </Row>
               )}

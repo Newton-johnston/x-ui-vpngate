@@ -449,7 +449,41 @@
           "requestHeader": "Request Header",
           "responseHeader": "Response Header"
         }
-      }
+      },
+      "relay": {
+        "title": "New Relay",
+        "badge": "Relay",
+        "cardHint": "Users connect to the local entry; traffic is forwarded through this host and exits via the landing server (relay + landing IP).",
+        "entrySection": "Relay entry (users connect here)",
+        "landingSection": "Landing exit (traffic exits here)",
+        "entryProtocol": "Entry protocol",
+        "entryPort": "Entry port",
+        "landingProtocol": "Landing protocol",
+        "inputMode": "Input mode",
+        "pasteLink": "Paste share link",
+        "manual": "Manual",
+        "landingLink": "Landing link",
+        "landingAddress": "Landing address",
+        "landingAddressHint": "Paste host:port or host:port:user:pass — auto-split",
+        "landingPort": "Landing port",
+        "method": "Cipher",
+        "passwordLabel": "Password",
+        "usernameOptional": "Username (optional)",
+        "passwordOptional": "Password (optional)",
+        "manualHint": "Manual mode builds a plain (non-TLS) connection; for a TLS/Reality landing use \"Paste share link\".",
+        "create": "Create relay",
+        "intro": "Users connect to the relay entry; traffic is forwarded through this host and exits via the landing.",
+        "defaultRemark": "relay",
+        "badLink": "Could not parse the landing share link",
+        "needAddress": "Landing address is required",
+        "keyFailed": "Failed to fetch Reality keys",
+        "entryFailed": "Failed to create relay entry inbound",
+        "noTag": "Could not obtain relay inbound tag",
+        "loadCfgFailed": "Failed to load Xray config (relay inbound created; add the route manually in Xray settings)",
+        "saveFailed": "Failed to save route",
+        "created": "Relay created"
+      },
+      "deleteOrphanCheckbox": "Also delete {count} client(s) that would no longer belong to any inbound"
     },
     "clients": {
       "add": "Add Client",
@@ -605,7 +639,12 @@
         "bulkAdjusted": "{count} clients adjusted",
         "bulkAdjustedMixed": "{ok} adjusted, {skipped} skipped",
         "delDepleted": "{count} depleted clients deleted"
-      }
+      },
+      "source": "Source",
+      "sourceInbound": "Inbound",
+      "sourceStandalone": "Standalone",
+      "attached": "Attached to inbound",
+      "unattached": "Unattached"
     },
     "groups": {
       "title": "Groups",

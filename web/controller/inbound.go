@@ -66,6 +66,7 @@ func (a *InboundController) initRouter(g *gin.RouterGroup) {
 	g.GET("/options", a.getInboundOptions)
 	g.GET("/get/:id", a.getInbound)
 	g.GET("/:id/fallbacks", a.getFallbacks)
+	g.GET("/:id/orphanCount", a.getOrphanCount)
 
 	g.POST("/add", a.addInbound)
 	g.POST("/del/:id", a.delInbound)
@@ -158,14 +159,34 @@ func (a *InboundController) addInbound(c *gin.Context) {
 	notifyClientsChanged()
 }
 
-// delInbound deletes an inbound configuration by its ID.
+// getOrphanCount reports how many clients would become standalone (attached
+// to no inbound) if the given inbound were deleted. Drives the delete-confirm
+// prompt that offers to purge them.
+func (a *InboundController) getOrphanCount(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	n, err := a.clientService.CountOrphansForInbound(id)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonObj(c, n, nil)
+}
+
+// delInbound deletes an inbound configuration by its ID. When the request
+// carries purgeClients=true, clients left attached to no other inbound are
+// deleted too.
 func (a *InboundController) delInbound(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundDeleteSuccess"), err)
 		return
 	}
-	needRestart, err := a.inboundService.DelInbound(id)
+	purge := c.Query("purgeClients") == "true" || c.PostForm("purgeClients") == "true"
+	needRestart, err := a.inboundService.DelInboundPurgeOrphans(id, purge)
 	if err != nil {
 		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
 		return

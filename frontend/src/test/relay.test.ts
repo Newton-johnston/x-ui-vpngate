@@ -6,6 +6,7 @@ import {
   applyRelayToTemplate,
   buildRelayInboundPayload,
   buildRelayRule,
+  isRelayEntryTag,
   landingOutboundFromLink,
   landingOutboundFromManual,
   parseLandingEndpoint,
@@ -93,6 +94,19 @@ describe('relay entry inbound payload', () => {
     const payload = buildRelayInboundPayload(RELAY_ENTRY_PRESETS[0], { port: 20000 });
     const settings = JSON.parse(payload.settings) as { clients: unknown[] };
     expect(settings.clients).toHaveLength(1);
+  });
+
+  it('tags the entry inbound with the relay prefix so lists can badge it', () => {
+    const payload = buildRelayInboundPayload(RELAY_ENTRY_PRESETS[0], { port: 20000 });
+    expect(payload.tag).toBe('relay-in-20000');
+    expect(isRelayEntryTag(payload.tag)).toBe(true);
+  });
+
+  it('isRelayEntryTag distinguishes relay entries from normal inbounds', () => {
+    expect(isRelayEntryTag('relay-in-12345')).toBe(true);
+    expect(isRelayEntryTag('inbound-443')).toBe(false);
+    expect(isRelayEntryTag('')).toBe(false);
+    expect(isRelayEntryTag(undefined)).toBe(false);
   });
 });
 

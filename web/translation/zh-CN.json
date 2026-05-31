@@ -422,7 +422,41 @@
           "requestHeader": "请求头",
           "responseHeader": "响应头"
         }
-      }
+      },
+      "relay": {
+        "title": "新建中转",
+        "badge": "中转",
+        "cardHint": "用户连本机入口，流量经本机转发到落地服务器后出网（中转机 + 落地 IP）。",
+        "entrySection": "中转入口（用户连这台）",
+        "landingSection": "落地出口（流量从这出网）",
+        "entryProtocol": "入口协议",
+        "entryPort": "入口端口",
+        "landingProtocol": "落地协议",
+        "inputMode": "填写方式",
+        "pasteLink": "粘贴分享链接",
+        "manual": "手动填写",
+        "landingLink": "落地链接",
+        "landingAddress": "落地地址",
+        "landingAddressHint": "可直接粘 host:port 或 host:port:用户名:密码，自动拆分",
+        "landingPort": "落地端口",
+        "method": "加密方式",
+        "passwordLabel": "密码",
+        "usernameOptional": "用户名（可选）",
+        "passwordOptional": "密码（可选）",
+        "manualHint": "手动模式建立不带 TLS 的直连；落地是带 TLS/Reality 的节点时请改用「粘贴分享链接」。",
+        "create": "创建中转",
+        "intro": "用户连接「中转入口」，流量经本机转发到「落地出口」后出网。",
+        "defaultRemark": "中转",
+        "badLink": "落地分享链接无法解析",
+        "needAddress": "请填写落地地址",
+        "keyFailed": "获取 Reality 密钥失败",
+        "entryFailed": "创建中转入站失败",
+        "noTag": "未能获取中转入站标签",
+        "loadCfgFailed": "读取 Xray 配置失败（中转入站已建，请到 Xray 设置手动加路由）",
+        "saveFailed": "保存路由失败",
+        "created": "中转已创建"
+      },
+      "deleteOrphanCheckbox": "同时删除将不再属于任何入站的 {count} 个客户端"
     },
     "clients": {
       "add": "添加客户端",
@@ -526,7 +560,18 @@
         "bulkAdjusted": "已调整 {count} 个客户端",
         "bulkAdjustedMixed": "已调整 {ok} 个，跳过 {skipped} 个",
         "delDepleted": "已删除 {count} 个已耗尽的客户端"
-      }
+      },
+      "attach": "关联",
+      "detach": "取消关联",
+      "addToGroup": "加入分组",
+      "ungroup": "移出分组",
+      "searchPlaceholder": "搜索邮箱、备注、subID、UUID、密码…",
+      "sortOldest": "最早优先",
+      "source": "来源",
+      "sourceInbound": "入站",
+      "sourceStandalone": "独立",
+      "attached": "已挂载入站",
+      "unattached": "未挂载（独立）"
     },
     "nodes": {
       "title": "服务器",
@@ -1118,5 +1163,6 @@
       "chooseClient": "为入站 {{ .Inbound }} 选择一个客户",
       "chooseInbound": "选择一个入站"
     }
-  }
+  },
+  "more": "更多"
 }

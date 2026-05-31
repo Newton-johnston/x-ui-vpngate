@@ -30,7 +30,7 @@ interface FilterDrawerProps {
   groups: string[];
 }
 
-const BUCKET_KEYS = ['active', 'expiring', 'depleted', 'deactive', 'online'] as const;
+const BUCKET_KEYS = ['active', 'expiring', 'depleted', 'deactive', 'online', 'attached', 'unattached'] as const;
 
 export default function FilterDrawer({
   open,
@@ -239,6 +239,14 @@ function bucketLabel(key: string, t: (k: string) => string): string {
     case 'depleted': return t('depleted');
     case 'deactive': return t('disabled');
     case 'online': return t('online');
+    case 'attached': {
+      const v = t('pages.clients.attached');
+      return v === 'pages.clients.attached' ? '已挂载入站' : v;
+    }
+    case 'unattached': {
+      const v = t('pages.clients.unattached');
+      return v === 'pages.clients.unattached' ? '未挂载（独立）' : v;
+    }
     default: return key;
   }
 }
