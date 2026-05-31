@@ -456,7 +456,8 @@
         "saveFailed": "保存路由失败",
         "created": "中转已创建"
       },
-      "deleteOrphanCheckbox": "同时删除将不再属于任何入站的 {count} 个客户端"
+      "deleteOrphanCheckbox": "同时删除将不再属于任何入站的 {count} 个客户端",
+      "advancedMode": "高级设置"
     },
     "clients": {
       "add": "添加客户端",

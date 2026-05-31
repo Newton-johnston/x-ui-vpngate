@@ -333,6 +333,11 @@ export default function InboundFormModal({
   // active so we can show its domain input (TLS presets) and highlight it.
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [presetDomain, setPresetDomain] = useState('');
+  // Simple/advanced toggle. In add mode the modal opens "simple" — only the
+  // preset gallery + basic fields show. Flipping advanced reveals the
+  // protocol / stream / security / sniffing / advanced tabs for hand-tuning.
+  // Edit mode always opens advanced (you're tweaking an existing inbound).
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const selectableNodes = (availableNodes || []).filter((n) => n.enable);
   const protocol = (Form.useWatch('protocol', form) ?? '') as string;
@@ -826,6 +831,8 @@ export default function InboundFormModal({
     form.setFieldsValue(initial);
     setSelectedPresetId(null);
     setPresetDomain('');
+    // Edit opens advanced (tweaking an existing inbound); add opens simple.
+    setAdvancedOpen(mode === 'edit');
     if (
       mode === 'edit'
       && dbInbound
@@ -1018,6 +1025,12 @@ export default function InboundFormModal({
   const basicTab = (
     <>
       {presetGallery}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {t('pages.inbounds.advancedMode', { defaultValue: '高级设置' })}
+        </Typography.Text>
+        <Switch size="small" checked={advancedOpen} onChange={setAdvancedOpen} />
+      </div>
       <Form.Item name="tag" hidden noStyle><Input /></Form.Item>
       <Form.Item name="up" hidden noStyle><InputNumber /></Form.Item>
       <Form.Item name="down" hidden noStyle><InputNumber /></Form.Item>
@@ -3241,25 +3254,30 @@ export default function InboundFormModal({
             // partial-view {} until the user touches the tab and the
             // inner Form.Item for `sniffing.enabled` registers.
             { key: 'basic', label: t('pages.xray.basicTemplate'), children: basicTab, forceRender: true },
-            ...(([
-              Protocols.VLESS,
-              Protocols.SHADOWSOCKS,
-              Protocols.HTTP,
-              Protocols.MIXED,
-              Protocols.TUNNEL,
-              Protocols.TUN,
-              Protocols.WIREGUARD,
-            ] as string[]).includes(protocol) || isFallbackHost
-              ? [{ key: 'protocol', label: t('pages.inbounds.protocol'), children: protocolTab, forceRender: true }]
-              : []),
-            ...(streamEnabled
-              ? [
-                { key: 'stream', label: t('pages.inbounds.streamTab'), children: streamTab, forceRender: true },
-                { key: 'security', label: t('pages.inbounds.securityTab'), children: securityTab, forceRender: true },
-              ]
-              : []),
-            { key: 'sniffing', label: t('pages.inbounds.sniffingTab'), children: sniffingTab, forceRender: true },
-            { key: 'advanced', label: t('pages.xray.advancedTemplate'), children: advancedTab, forceRender: true },
+            // Advanced tabs are hidden in simple mode (add). The preset fully
+            // populates the form store, and submit reads getFieldsValue(true),
+            // so values survive even while these tabs are unmounted.
+            ...(advancedOpen ? [
+              ...(([
+                Protocols.VLESS,
+                Protocols.SHADOWSOCKS,
+                Protocols.HTTP,
+                Protocols.MIXED,
+                Protocols.TUNNEL,
+                Protocols.TUN,
+                Protocols.WIREGUARD,
+              ] as string[]).includes(protocol) || isFallbackHost
+                ? [{ key: 'protocol', label: t('pages.inbounds.protocol'), children: protocolTab, forceRender: true }]
+                : []),
+              ...(streamEnabled
+                ? [
+                  { key: 'stream', label: t('pages.inbounds.streamTab'), children: streamTab, forceRender: true },
+                  { key: 'security', label: t('pages.inbounds.securityTab'), children: securityTab, forceRender: true },
+                ]
+                : []),
+              { key: 'sniffing', label: t('pages.inbounds.sniffingTab'), children: sniffingTab, forceRender: true },
+              { key: 'advanced', label: t('pages.xray.advancedTemplate'), children: advancedTab, forceRender: true },
+            ] : []),
           ]} />
         </Form>
       </Modal>

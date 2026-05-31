@@ -483,7 +483,8 @@
         "saveFailed": "Failed to save route",
         "created": "Relay created"
       },
-      "deleteOrphanCheckbox": "Also delete {count} client(s) that would no longer belong to any inbound"
+      "deleteOrphanCheckbox": "Also delete {count} client(s) that would no longer belong to any inbound",
+      "advancedMode": "Advanced"
     },
     "clients": {
       "add": "Add Client",
