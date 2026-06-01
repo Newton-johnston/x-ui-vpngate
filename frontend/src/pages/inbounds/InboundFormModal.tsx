@@ -577,8 +577,13 @@ export default function InboundFormModal({
     const subId = await fetchCommonSubId();
     if (subId) applyPresetSecrets(row, { subId });
     const values = rawInboundToFormValues(row);
+    // Preserve the operator's "deploy to" choice across preset switches — the
+    // preset row carries no nodeId, so resetFields()+setFieldsValue() would
+    // otherwise clear a node they already picked.
+    const keepNodeId = form.getFieldValue('nodeId') ?? null;
     form.resetFields();
     form.setFieldsValue(values);
+    if (keepNodeId != null) form.setFieldValue('nodeId', keepNodeId);
     setFallbacks([]);
     setSelectedPresetId(preset.id);
     if (preset.needsRealityKeys) {
@@ -618,6 +623,10 @@ export default function InboundFormModal({
       // Shared subId so all batch-created nodes land in one subscription.
       const commonSubId = await fetchCommonSubId();
 
+      // Deploy target chosen in the modal — batch-create bypasses form submit,
+      // so thread it onto every payload (null = local panel).
+      const targetNodeId = (form.getFieldValue('nodeId') as number | null) ?? null;
+
       // Cert-free presets always; TLS presets only when a cert is available.
       const targets = INBOUND_PRESETS.filter((p) => !p.needsDomain || hasCert);
 
@@ -644,6 +653,9 @@ export default function InboundFormModal({
         const values = rawInboundToFormValues(row);
         (values as unknown as Record<string, unknown>).remark =
           t(preset.titleKey, { defaultValue: PRESET_FALLBACK[preset.id].title });
+        if (targetNodeId != null) {
+          (values as unknown as Record<string, unknown>).nodeId = targetNodeId;
+        }
         const payload = formValuesToWirePayload(values);
         const msg = await HttpUtil.post('/panel/api/inbounds/add', payload);
         if (msg?.success) ok += 1;
@@ -1157,7 +1169,12 @@ export default function InboundFormModal({
         <Input />
       </Form.Item>
 
-      {!simpleMode && selectableNodes.length > 0 && isNodeEligible && (
+      {/* "Deploy to" stays visible in simple (recommend) mode too: a one-click
+          preset still needs to land on a chosen server/node. In simple mode the
+          protocol Form.Item is unmounted, so Form.useWatch('protocol') can't see
+          the preset's protocol and isNodeEligible reads false — but every preset
+          is node-eligible by construction, so treat simpleMode as eligible. */}
+      {selectableNodes.length > 0 && (simpleMode || isNodeEligible) && (
         <Form.Item name="nodeId" label={t('pages.inbounds.deployTo')}>
           <Select
             disabled={mode === 'edit'}
