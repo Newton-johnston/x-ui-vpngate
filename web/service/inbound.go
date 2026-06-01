@@ -599,6 +599,31 @@ func (s *InboundService) DelInboundPurgeOrphans(id int, purgeOrphans bool) (bool
 	return s.delInbound(id, purgeOrphans)
 }
 
+// DelInboundsBatch deletes several inbounds. When purgeOrphans is true the
+// clients left attached to no inbound OUTSIDE the deleted set are removed
+// first (computed against the whole set, so a client shared between two
+// selected inbounds is purged, while one also bound to a kept inbound is not).
+func (s *InboundService) DelInboundsBatch(ids []int, purgeOrphans bool) (bool, error) {
+	if len(ids) == 0 {
+		return false, nil
+	}
+	if purgeOrphans {
+		if err := s.clientService.PurgeOrphansForInbounds(database.GetDB(), ids); err != nil {
+			return false, err
+		}
+	}
+	needRestart := false
+	for _, id := range ids {
+		// purge=false here: set-wide orphans were already handled above.
+		nr, err := s.delInbound(id, false)
+		if err != nil {
+			return needRestart, err
+		}
+		needRestart = needRestart || nr
+	}
+	return needRestart, nil
+}
+
 func (s *InboundService) delInbound(id int, purgeOrphans bool) (bool, error) {
 	db := database.GetDB()
 

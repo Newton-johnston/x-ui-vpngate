@@ -34,6 +34,7 @@ var defaultValueMap = map[string]string{
 	"webCertFile":                 "",
 	"webKeyFile":                  "",
 	"secret":                      random.Seq(32),
+	"commonSubId":                 "",
 	"apiToken":                    "",
 	"webBasePath":                 "/",
 	"sessionMaxAge":               "360",
@@ -284,6 +285,24 @@ func (s *SettingService) getString(key string) (string, error) {
 
 func (s *SettingService) setString(key string, value string) error {
 	return s.saveSetting(key, value)
+}
+
+// GetCommonSubId returns the panel-wide shared subscription id, creating and
+// persisting one on first use. Preset/one-click inbounds stamp their clients
+// with this id so a single subscription URL aggregates every such node.
+func (s *SettingService) GetCommonSubId() (string, error) {
+	id, err := s.getString("commonSubId")
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(id) != "" {
+		return id, nil
+	}
+	id = random.Seq(16)
+	if err := s.setString("commonSubId", id); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 func (s *SettingService) getBool(key string) (bool, error) {

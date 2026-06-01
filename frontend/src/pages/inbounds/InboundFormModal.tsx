@@ -40,7 +40,7 @@ import {
   dropLegacyOptionalEmpties,
 } from '@/lib/xray/inbound-form-adapter';
 import { createDefaultInboundSettings } from '@/lib/xray/inbound-defaults';
-import { INBOUND_PRESETS, PRESET_FALLBACK, type InboundPreset } from '@/lib/xray/inbound-presets';
+import { INBOUND_PRESETS, PRESET_FALLBACK, applyPresetSecrets, type InboundPreset } from '@/lib/xray/inbound-presets';
 import {
   canEnableReality,
   canEnableStream,
@@ -333,11 +333,11 @@ export default function InboundFormModal({
   // active so we can show its domain input (TLS presets) and highlight it.
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [presetDomain, setPresetDomain] = useState('');
-  // Simple/advanced toggle. In add mode the modal opens "simple" — only the
-  // preset gallery + basic fields show. Flipping advanced reveals the
-  // protocol / stream / security / sniffing / advanced tabs for hand-tuning.
-  // Edit mode always opens advanced (you're tweaking an existing inbound).
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  // "Recommend protocol" toggle (add mode). ON → show the one-click preset
+  // gallery with the recommended preset pre-applied. OFF → hide the gallery
+  // and reveal the protocol/stream/security/sniffing/advanced tabs for manual
+  // setup. Edit mode opens with it OFF (full tabs, no presets).
+  const [recommendOpen, setRecommendOpen] = useState(true);
 
   const selectableNodes = (availableNodes || []).filter((n) => n.enable);
   const protocol = (Form.useWatch('protocol', form) ?? '') as string;
@@ -559,6 +559,12 @@ export default function InboundFormModal({
     return domain;
   };
 
+  // The panel-wide shared subscription id (get-or-create on the server).
+  const fetchCommonSubId = async (): Promise<string> => {
+    const msg = await HttpUtil.get('/panel/api/server/getCommonSubId', undefined, { silent: true });
+    return msg?.success && typeof msg.obj === 'string' ? msg.obj : '';
+  };
+
   // Apply a one-click preset: build a full inbound row, push it into the form
   // through the same adapter buildAddModeValues() uses, then fetch Reality
   // keys (Reality presets) or auto-apply the panel cert + domain (TLS presets).
@@ -566,6 +572,10 @@ export default function InboundFormModal({
   const applyPreset = async (preset: InboundPreset) => {
     const domain = preset.needsDomain ? presetDomain : undefined;
     const row = preset.build(domain);
+    // Stamp the panel-wide shared subId so one subscription URL aggregates
+    // every preset-built node.
+    const subId = await fetchCommonSubId();
+    if (subId) applyPresetSecrets(row, { subId });
     const values = rawInboundToFormValues(row);
     form.resetFields();
     form.setFieldsValue(values);
@@ -580,6 +590,87 @@ export default function InboundFormModal({
       // as an override.
       const applied = await applyPanelCertToTls();
       if (applied && !presetDomain) setPresetDomain(applied);
+    }
+  };
+
+  // One-click "add all recommended": batch-create every applicable preset as
+  // its own inbound, no form interaction. Detects whether the panel has a TLS
+  // cert configured — if so, the TLS presets (Trojan/VMess/Hysteria2) are
+  // included with the panel cert + domain auto-filled; otherwise only the
+  // cert-free Reality presets are created. Each preset gets its own Reality
+  // key pair. Reports how many succeeded.
+  const addAllRecommended = async () => {
+    setSaving(true);
+    try {
+      // Detect panel cert + domain.
+      let certFile = '';
+      let keyFile = '';
+      let domain = '';
+      const settingMsg = await HttpUtil.post('/panel/setting/all', undefined, { silent: true });
+      if (settingMsg?.success) {
+        const obj = settingMsg.obj as { webCertFile?: string; webKeyFile?: string; webDomain?: string };
+        certFile = obj.webCertFile ?? '';
+        keyFile = obj.webKeyFile ?? '';
+        domain = (obj.webDomain || '').trim() || domainFromCertPath(certFile);
+      }
+      const hasCert = !!(certFile && keyFile && domain);
+
+      // Shared subId so all batch-created nodes land in one subscription.
+      const commonSubId = await fetchCommonSubId();
+
+      // Cert-free presets always; TLS presets only when a cert is available.
+      const targets = INBOUND_PRESETS.filter((p) => !p.needsDomain || hasCert);
+
+      let ok = 0;
+      const failed: string[] = [];
+      for (const preset of targets) {
+        const row = preset.build(preset.needsDomain ? domain : undefined);
+        const secrets: Parameters<typeof applyPresetSecrets>[1] = {};
+        if (commonSubId) secrets.subId = commonSubId;
+        if (preset.needsRealityKeys) {
+          const km = await HttpUtil.get('/panel/api/server/getNewX25519Cert');
+          if (km?.success && km.obj) {
+            const o = km.obj as { privateKey: string; publicKey: string };
+            secrets.realityPrivateKey = o.privateKey;
+            secrets.realityPublicKey = o.publicKey;
+          }
+        }
+        if (preset.needsDomain && hasCert) {
+          secrets.certFile = certFile;
+          secrets.keyFile = keyFile;
+          secrets.domain = domain;
+        }
+        applyPresetSecrets(row, secrets);
+        const values = rawInboundToFormValues(row);
+        (values as unknown as Record<string, unknown>).remark =
+          t(preset.titleKey, { defaultValue: PRESET_FALLBACK[preset.id].title });
+        const payload = formValuesToWirePayload(values);
+        const msg = await HttpUtil.post('/panel/api/inbounds/add', payload);
+        if (msg?.success) ok += 1;
+        else failed.push(PRESET_FALLBACK[preset.id].title);
+      }
+
+      if (ok > 0) {
+        const skipped = INBOUND_PRESETS.length - targets.length;
+        messageApi.success(
+          t('pages.inbounds.presets.addedN', {
+            count: ok,
+            defaultValue: `已添加 {count} 个推荐协议`,
+          }) + (skipped > 0 ? t('pages.inbounds.presets.skippedNoCert', {
+            count: skipped,
+            defaultValue: `（{count} 个需域名证书已跳过）`,
+          }) : ''),
+        );
+      }
+      if (failed.length > 0) {
+        messageApi.error(`${failed.join('、')} ${t('somethingWentWrong', { defaultValue: '出了点问题' })}`);
+      }
+      if (ok > 0) {
+        onSaved();
+        onClose();
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -824,25 +915,33 @@ export default function InboundFormModal({
 
   useEffect(() => {
     if (!open) return;
-    const initial = mode === 'edit' && dbInbound
-      ? rawInboundToFormValues(dbInbound)
-      : buildAddModeValues();
-    form.resetFields();
-    form.setFieldsValue(initial);
-    setSelectedPresetId(null);
     setPresetDomain('');
-    // Edit opens advanced (tweaking an existing inbound); add opens simple.
-    setAdvancedOpen(mode === 'edit');
-    if (
-      mode === 'edit'
-      && dbInbound
-      && (dbInbound.protocol === Protocols.VLESS || dbInbound.protocol === Protocols.TROJAN)
-    ) {
-      loadFallbacks(dbInbound.id);
-    } else {
-      setFallbacks([]);
+    setFallbacks([]);
+    if (mode === 'edit' && dbInbound) {
+      form.resetFields();
+      form.setFieldsValue(rawInboundToFormValues(dbInbound));
+      setSelectedPresetId(null);
+      setRecommendOpen(false); // editing an existing inbound → full tabs, no presets
+      if (dbInbound.protocol === Protocols.VLESS || dbInbound.protocol === Protocols.TROJAN) {
+        loadFallbacks(dbInbound.id);
+      }
+      return;
     }
-
+    // Add mode: open simple, with the recommended preset pre-applied so the
+    // form is ready to create in one click. applyPreset does its own
+    // resetFields + setFieldsValue (+ Reality key fetch).
+    form.resetFields();
+    form.setFieldsValue(buildAddModeValues());
+    setRecommendOpen(true);
+    const recommended = INBOUND_PRESETS.find((p) => p.recommended) ?? INBOUND_PRESETS[0];
+    if (recommended) {
+      void applyPreset(recommended);
+    } else {
+      setSelectedPresetId(null);
+    }
+    // applyPreset/loadFallbacks are stable for this effect's purpose; adding
+    // them would re-run on every render. Intentionally keyed on open/mode/row.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode, dbInbound, form]);
 
   // Why: protocol picker reset cascades through the form — clearing the
@@ -854,6 +953,9 @@ export default function InboundFormModal({
     if (mode === 'edit') return;
     if ('protocol' in changed && typeof changed.protocol === 'string') {
       const next = changed.protocol;
+      // Manually changing the protocol diverges from the preset — drop the
+      // gallery highlight so the card no longer claims to describe the form.
+      setSelectedPresetId(null);
       const settings = createDefaultInboundSettings(next) ?? undefined;
       form.setFieldValue('settings', settings);
       if (!NODE_ELIGIBLE_PROTOCOLS.has(next)) {
@@ -969,9 +1071,17 @@ export default function InboundFormModal({
 
   // One-click preset gallery — add mode only. Each card seeds a full working
   // inbound; TLS presets reveal a domain input once selected.
-  const presetGallery = mode === 'add' ? (
+  // Simple mode = add + recommend on: only business fields show in basic tab.
+  const simpleMode = mode === 'add' && recommendOpen;
+
+  const presetGallery = mode === 'add' && recommendOpen ? (
     <Card size="small" style={{ marginBottom: 16 }} styles={{ body: { padding: 12 } }}>
-      <Typography.Text strong>{t('pages.inbounds.presets.title', { defaultValue: '一键模板' })}</Typography.Text>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <Typography.Text strong>{t('pages.inbounds.presets.title', { defaultValue: '一键模板' })}</Typography.Text>
+        <Button size="small" type="primary" ghost loading={saving} onClick={() => { void addAllRecommended(); }}>
+          {t('pages.inbounds.presets.addAll', { defaultValue: '一键添加全部推荐' })}
+        </Button>
+      </div>
       <Typography.Paragraph type="secondary" style={{ margin: '4px 0 10px', fontSize: 12 }}>
         {t('pages.inbounds.presets.subtitle', { defaultValue: '点一下即可填好一套可用配置，创建前可继续微调。' })}
       </Typography.Paragraph>
@@ -1025,12 +1135,6 @@ export default function InboundFormModal({
   const basicTab = (
     <>
       {presetGallery}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {t('pages.inbounds.advancedMode', { defaultValue: '高级设置' })}
-        </Typography.Text>
-        <Switch size="small" checked={advancedOpen} onChange={setAdvancedOpen} />
-      </div>
       <Form.Item name="tag" hidden noStyle><Input /></Form.Item>
       <Form.Item name="up" hidden noStyle><InputNumber /></Form.Item>
       <Form.Item name="down" hidden noStyle><InputNumber /></Form.Item>
@@ -1039,15 +1143,21 @@ export default function InboundFormModal({
       <Form.Item name="lastTrafficResetTime" hidden noStyle><InputNumber /></Form.Item>
       <Form.Item name="clientStats" hidden noStyle><Input /></Form.Item>
 
-      <Form.Item name="enable" label={t('enable')} valuePropName="checked">
-        <Switch />
-      </Form.Item>
+      {/* In simple (recommend) mode the protocol/transport is fixed by the
+          preset, and enable lives in the inbound list — so only the business
+          fields below (remark/total/reset/expiry) show. Manual/edit reveals
+          the full set. */}
+      {!simpleMode && (
+        <Form.Item name="enable" label={t('enable')} valuePropName="checked">
+          <Switch />
+        </Form.Item>
+      )}
 
       <Form.Item name="remark" label={t('pages.inbounds.remark')}>
         <Input />
       </Form.Item>
 
-      {selectableNodes.length > 0 && isNodeEligible && (
+      {!simpleMode && selectableNodes.length > 0 && isNodeEligible && (
         <Form.Item name="nodeId" label={t('pages.inbounds.deployTo')}>
           <Select
             disabled={mode === 'edit'}
@@ -1065,21 +1175,27 @@ export default function InboundFormModal({
         </Form.Item>
       )}
 
-      <Form.Item name="protocol" label={t('pages.inbounds.protocol')}>
-        <Select disabled={mode === 'edit'} options={PROTOCOL_OPTIONS} />
-      </Form.Item>
+      {!simpleMode && (
+        <Form.Item name="protocol" label={t('pages.inbounds.protocol')}>
+          <Select disabled={mode === 'edit'} options={PROTOCOL_OPTIONS} />
+        </Form.Item>
+      )}
 
-      <Form.Item name="listen" label={t('pages.inbounds.address')}>
-        <Input placeholder={t('pages.inbounds.monitorDesc')} />
-      </Form.Item>
+      {!simpleMode && (
+        <Form.Item name="listen" label={t('pages.inbounds.address')}>
+          <Input placeholder={t('pages.inbounds.monitorDesc')} />
+        </Form.Item>
+      )}
 
-      <Form.Item
-        name="port"
-        label={t('pages.inbounds.port')}
-        rules={[antdRule(InboundFormBaseSchema.shape.port, t)]}
-      >
-        <InputNumber min={1} max={65535} />
-      </Form.Item>
+      {!simpleMode && (
+        <Form.Item
+          name="port"
+          label={t('pages.inbounds.port')}
+          rules={[antdRule(InboundFormBaseSchema.shape.port, t)]}
+        >
+          <InputNumber min={1} max={65535} />
+        </Form.Item>
+      )}
 
       <Form.Item
         label={
@@ -3246,6 +3362,29 @@ export default function InboundFormModal({
           wrapperCol={{ sm: { span: 14 } }}
           onValuesChange={onValuesChange}
         >
+          {mode === 'add' && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('pages.inbounds.recommendToggle', { defaultValue: '推荐协议' })}
+              </Typography.Text>
+              <Switch
+                size="small"
+                checked={recommendOpen}
+                onChange={(checked) => {
+                  setRecommendOpen(checked);
+                  if (checked) {
+                    // Re-apply the recommended preset so "on" always means a
+                    // ready-to-create recommended setup.
+                    const rec = INBOUND_PRESETS.find((p) => p.recommended) ?? INBOUND_PRESETS[0];
+                    if (rec) void applyPreset(rec);
+                  } else {
+                    // Manual mode — no preset implied.
+                    setSelectedPresetId(null);
+                  }
+                }}
+              />
+            </div>
+          )}
           <Tabs items={[
             // forceRender on every tab so all Form.Items register at modal
             // open, not lazily on first visit. Without it, AntD's items API
@@ -3254,10 +3393,11 @@ export default function InboundFormModal({
             // partial-view {} until the user touches the tab and the
             // inner Form.Item for `sniffing.enabled` registers.
             { key: 'basic', label: t('pages.xray.basicTemplate'), children: basicTab, forceRender: true },
-            // Advanced tabs are hidden in simple mode (add). The preset fully
-            // populates the form store, and submit reads getFieldsValue(true),
-            // so values survive even while these tabs are unmounted.
-            ...(advancedOpen ? [
+            // With "recommend" ON the advanced tabs are hidden (the preset
+            // fully populates the form store, and submit reads
+            // getFieldsValue(true), so values survive while tabs are unmounted).
+            // Turning it OFF reveals them for manual setup.
+            ...(!recommendOpen ? [
               ...(([
                 Protocols.VLESS,
                 Protocols.SHADOWSOCKS,

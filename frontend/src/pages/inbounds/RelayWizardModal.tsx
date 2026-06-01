@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Divider, Form, Input, InputNumber, Modal, Radio, Select, Typography, message } from 'antd';
+import { Alert, Button, Divider, Form, Input, InputNumber, Modal, Radio, Select, Space, Typography, message } from 'antd';
 
 import { PRESET_FALLBACK } from '@/lib/xray/inbound-presets';
 import {
@@ -66,10 +66,15 @@ export default function RelayWizardModal({ open, onClose, onCreated }: RelayWiza
   const [ssMethod, setSsMethod] = useState(SS_METHODS[0]);
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
+  // Landing reachability test (relay host → landing IP:port).
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; delay?: number; error?: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setBusy(false);
+    setTesting(false);
+    setTestResult(null);
     setEntryPresetId(RELAY_ENTRY_PRESETS[0]?.id ?? '');
     setRemark('');
     setPort(RandomUtil.randomInteger(10000, 60000));
@@ -131,6 +136,35 @@ export default function RelayWizardModal({ open, onClose, onCreated }: RelayWiza
     };
     return { outbound: landingOutboundFromManual(input, tag) };
   }
+
+  // Probe whether the relay host can actually reach the landing server. Uses
+  // the panel's TCP dial-probe (mode=tcp) on the built landing outbound — a
+  // delay means relay → landing IP:port is reachable.
+  const testLanding = async () => {
+    const built = buildLanding([]);
+    if ('error' in built) {
+      setTestResult({ ok: false, error: built.error });
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('outbound', JSON.stringify(built.outbound));
+      fd.append('mode', 'tcp');
+      const msg = await HttpUtil.post('/panel/xray/testOutbound', fd);
+      const obj = msg?.obj as { success?: boolean; delay?: number; error?: string } | undefined;
+      if (msg?.success && obj?.success) {
+        setTestResult({ ok: true, delay: obj.delay });
+      } else {
+        setTestResult({ ok: false, error: obj?.error || msg?.msg || t('pages.nodes.connectionFailed', { defaultValue: '连接失败' }) });
+      }
+    } catch (e) {
+      setTestResult({ ok: false, error: String(e) });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const create = async () => {
     if (!entryPreset) return;
@@ -339,6 +373,25 @@ export default function RelayWizardModal({ open, onClose, onCreated }: RelayWiza
               </Typography.Paragraph>
             </>
           )}
+
+          <Form.Item label={t('pages.inbounds.relay.testLanding', { defaultValue: '连通测试' })}>
+            <Space wrap>
+              <Button loading={testing} onClick={testLanding}>
+                {t('pages.inbounds.relay.testLandingBtn', { defaultValue: '测试落地连通' })}
+              </Button>
+              {testResult?.ok && (
+                <Typography.Text type="success">
+                  {t('pages.nodes.connectionOk', { ms: testResult.delay, defaultValue: `连通正常 ({ms} ms)` })}
+                </Typography.Text>
+              )}
+              {testResult && !testResult.ok && (
+                <Typography.Text type="danger">
+                  {t('pages.nodes.connectionFailed', { defaultValue: '连接失败' })}
+                  {testResult.error ? `: ${testResult.error}` : ''}
+                </Typography.Text>
+              )}
+            </Space>
+          </Form.Item>
         </Form>
       </Modal>
     </>

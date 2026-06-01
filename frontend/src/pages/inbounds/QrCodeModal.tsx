@@ -24,6 +24,12 @@ interface QrCodeModalProps {
   onClose: () => void;
   dbInbound: (DbInboundLike & { remark?: string }) | null;
   client?: ClientSetting | null;
+  // When set, render a protocol QR for EACH client (multi-user inbound). Falls
+  // back to the single `client` when omitted.
+  clients?: ClientSetting[] | null;
+  // Show only the protocol-link QR(s), hiding the subscription QR. Used by the
+  // inbound list where the operator wants the node link, not a subscription.
+  protocolOnly?: boolean;
   remarkModel?: string;
   nodeAddress?: string;
   subSettings?: SubSettings;
@@ -41,6 +47,8 @@ export default function QrCodeModal({
   onClose,
   dbInbound,
   client = null,
+  clients = null,
+  protocolOnly = false,
   remarkModel = '-io',
   nodeAddress = '',
   subSettings,
@@ -81,21 +89,24 @@ export default function QrCodeModal({
       );
       setLinks([]);
     } else {
+      // Multi-user inbound: one protocol QR per client. Single-client path
+      // keeps the original single `client` behavior.
+      const list = clients && clients.length > 0 ? clients : [client ?? {}];
       setLinks(
-        genAllLinks({
+        list.flatMap((c) => genAllLinks({
           inbound,
           remark: dbInbound.remark || '',
           remarkModel,
-          client: client ?? {},
+          client: c ?? {},
           hostOverride: nodeAddress,
           fallbackHostname,
-        }),
+        })),
       );
       setWireguardConfigs([]);
       setWireguardLinks([]);
     }
 
-    const subId = client?.subId;
+    const subId = (clients && clients.length > 0 ? clients[0]?.subId : undefined) ?? client?.subId;
     let nextSub = '';
     let nextSubJson = '';
     if (subSettings?.enable && subId) {
@@ -104,14 +115,14 @@ export default function QrCodeModal({
     }
     setSubLink(nextSub);
     setSubJsonLink(nextSubJson);
-  }, [open, dbInbound, client, remarkModel, nodeAddress, subSettings]);
+  }, [open, dbInbound, client, clients, remarkModel, nodeAddress, subSettings]);
 
   const qrItems = useMemo<QrItem[]>(() => {
     const items: QrItem[] = [];
-    if (subLink) {
+    if (!protocolOnly && subLink) {
       items.push({ key: 'sub', header: t('subscription.title'), value: subLink });
     }
-    if (subJsonLink) {
+    if (!protocolOnly && subJsonLink) {
       items.push({ key: 'sub-json', header: `${t('subscription.title')} (JSON)`, value: subJsonLink });
     }
     links.forEach((link, idx) => {
@@ -129,7 +140,7 @@ export default function QrCodeModal({
       }
     });
     return items;
-  }, [subLink, subJsonLink, links, wireguardConfigs, wireguardLinks, t]);
+  }, [protocolOnly, subLink, subJsonLink, links, wireguardConfigs, wireguardLinks, t]);
 
   const collapseItems: CollapseProps['items'] = useMemo(
     () => qrItems.map((item) => ({

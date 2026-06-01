@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { rawInboundToFormValues } from '@/lib/xray/inbound-form-adapter';
 import { genVlessLink } from '@/lib/xray/inbound-link';
-import { INBOUND_PRESETS, getPreset } from '@/lib/xray/inbound-presets';
+import { INBOUND_PRESETS, applyPresetSecrets, getPreset } from '@/lib/xray/inbound-presets';
 import { InboundFormSchema } from '@/schemas/forms/inbound-form';
 import type { Inbound } from '@/schemas/api/inbound';
 
@@ -60,6 +60,36 @@ describe('inbound presets', () => {
     };
     expect(vision.clients[0].flow).toBe('xtls-rprx-vision');
     expect(grpc.clients[0].flow).toBe('');
+  });
+
+  it('applyPresetSecrets injects reality keys for a reality preset', () => {
+    const row = getPreset('vless-reality-vision')!.build();
+    applyPresetSecrets(row, { realityPrivateKey: 'PRIV', realityPublicKey: 'PUB' });
+    const stream = row.streamSettings as {
+      realitySettings: { privateKey: string; settings: { publicKey: string } };
+    };
+    expect(stream.realitySettings.privateKey).toBe('PRIV');
+    expect(stream.realitySettings.settings.publicKey).toBe('PUB');
+  });
+
+  it('applyPresetSecrets stamps a shared subId on every client', () => {
+    const row = getPreset('vless-reality-vision')!.build();
+    applyPresetSecrets(row, { subId: 'SHARED123' });
+    const clients = (row.settings as { clients: { subId: string }[] }).clients;
+    expect(clients.every((c) => c.subId === 'SHARED123')).toBe(true);
+  });
+
+  it('applyPresetSecrets injects panel cert + domain for a TLS preset', () => {
+    const row = getPreset('trojan-tls')!.build();
+    applyPresetSecrets(row, { certFile: '/c/fullchain.pem', keyFile: '/c/privkey.pem', domain: 'my.host' });
+    const tls = (row.streamSettings as { tlsSettings: {
+      serverName: string; certificates: { certificateFile: string; keyFile: string }[];
+    } }).tlsSettings;
+    expect(tls.serverName).toBe('my.host');
+    expect(tls.certificates[0].certificateFile).toBe('/c/fullchain.pem');
+    expect(tls.certificates[0].keyFile).toBe('/c/privkey.pem');
+    // The row still maps to a schema-valid form value.
+    expect(InboundFormSchema.safeParse(rawInboundToFormValues(row)).success).toBe(true);
   });
 
   // Regression: the Reality share link MUST carry sni — without it the

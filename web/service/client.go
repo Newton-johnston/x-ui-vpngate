@@ -277,45 +277,65 @@ func (s *ClientService) DetachInbound(tx *gorm.DB, inboundId int) error {
 	return tx.Where("inbound_id = ?", inboundId).Delete(&model.ClientInbound{}).Error
 }
 
-// orphanClientIdsForInbound returns the ids of clients whose ONLY inbound
-// attachment is inboundId — i.e. the clients that would be left dangling
-// ("standalone") if this inbound were deleted. Call BEFORE DetachInbound,
-// while the links still exist.
-func (s *ClientService) orphanClientIdsForInbound(tx *gorm.DB, inboundId int) ([]int, error) {
+// orphanClientIdsForInbounds returns the ids of clients whose inbound
+// attachments are ALL within inboundIds — i.e. the clients left dangling
+// ("standalone") once every inbound in the set is deleted. Call BEFORE
+// detaching, while the links still exist. The single-inbound case is just a
+// one-element set.
+func (s *ClientService) orphanClientIdsForInbounds(tx *gorm.DB, inboundIds []int) ([]int, error) {
 	if tx == nil {
 		tx = database.GetDB()
 	}
+	if len(inboundIds) == 0 {
+		return nil, nil
+	}
 	var ids []int
-	// client_ids attached to this inbound that are attached to no other inbound.
+	// client_ids attached to some inbound in the set, attached to no inbound
+	// outside the set.
 	err := tx.Model(&model.ClientInbound{}).
-		Where("inbound_id = ?", inboundId).
+		Where("inbound_id IN ?", inboundIds).
 		Where("client_id NOT IN (?)",
 			tx.Model(&model.ClientInbound{}).
 				Select("client_id").
-				Where("inbound_id <> ?", inboundId)).
+				Where("inbound_id NOT IN ?", inboundIds)).
+		Distinct().
 		Pluck("client_id", &ids).Error
 	return ids, err
+}
+
+func (s *ClientService) orphanClientIdsForInbound(tx *gorm.DB, inboundId int) ([]int, error) {
+	return s.orphanClientIdsForInbounds(tx, []int{inboundId})
 }
 
 // CountOrphansForInbound reports how many clients would become standalone if
 // the given inbound were deleted (used to drive the delete-confirm prompt).
 func (s *ClientService) CountOrphansForInbound(inboundId int) (int, error) {
-	ids, err := s.orphanClientIdsForInbound(nil, inboundId)
+	return s.CountOrphansForInbounds([]int{inboundId})
+}
+
+// CountOrphansForInbounds reports how many clients would become standalone if
+// the whole set of inbounds were deleted.
+func (s *ClientService) CountOrphansForInbounds(inboundIds []int) (int, error) {
+	ids, err := s.orphanClientIdsForInbounds(nil, inboundIds)
 	if err != nil {
 		return 0, err
 	}
 	return len(ids), nil
 }
 
-// PurgeOrphansForInbound deletes the client records (and their traffic) that
-// are attached ONLY to inboundId. Must run BEFORE the inbound's links are
-// detached. Used when the operator opts to delete orphaned clients along with
-// the inbound.
+// PurgeOrphansForInbound deletes clients attached only to inboundId.
 func (s *ClientService) PurgeOrphansForInbound(tx *gorm.DB, inboundId int) error {
+	return s.PurgeOrphansForInbounds(tx, []int{inboundId})
+}
+
+// PurgeOrphansForInbounds deletes the client records (and their traffic/IPs)
+// that are attached only to inbounds within the set. Must run BEFORE the
+// inbounds' links are detached.
+func (s *ClientService) PurgeOrphansForInbounds(tx *gorm.DB, inboundIds []int) error {
 	if tx == nil {
 		tx = database.GetDB()
 	}
-	ids, err := s.orphanClientIdsForInbound(tx, inboundId)
+	ids, err := s.orphanClientIdsForInbounds(tx, inboundIds)
 	if err != nil {
 		return err
 	}

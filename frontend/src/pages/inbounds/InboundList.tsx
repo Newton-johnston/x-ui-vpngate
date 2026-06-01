@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -192,6 +192,7 @@ interface InboundListProps {
   hasActiveNode: boolean;
   onAddInbound: () => void;
   onRelay: () => void;
+  onBulkDelete: (ids: number[]) => void;
   onGeneralAction: (key: GeneralAction) => void;
   onRowAction: (action: { key: RowAction; dbInbound: DBInboundRecord }) => void;
 }
@@ -225,28 +226,33 @@ const SORT_FNS: Record<SortKey, (a: DBInboundRecord, b: DBInboundRecord, ctx: { 
   clients: (a, b, ctx) => (ctx.clientCount[a.id]?.clients || 0) - (ctx.clientCount[b.id]?.clients || 0),
 };
 
-function showQrCodeMenu(dbInbound: DBInboundRecord): boolean {
+function showQrCodeMenu(dbInbound: DBInboundRecord, clientCnt: number): boolean {
   if (dbInbound.isWireguard) return true;
   if (dbInbound.isSS) {
     return !isSSMultiUser({ protocol: 'shadowsocks', settings: readSettings(dbInbound.settings) });
   }
-  return false;
+  // Multi-user protocols (vless/vmess/trojan/…): always offer the QR. The
+  // modal renders a protocol QR per client, so scanning into Shadowrocket
+  // works whether there's one client or several. Hide only when there are no
+  // clients at all (nothing to encode).
+  return clientCnt > 0;
 }
 
 interface RowActionsMenuProps {
   record: DBInboundRecord;
   subEnable: boolean;
   hasClients: boolean;
+  clientCnt: number;
   onClick: (key: RowAction) => void;
   isMobile?: boolean;
 }
 
-function buildRowActionsMenu({ record, subEnable, t, isMobile, hasClients }: { record: DBInboundRecord; subEnable: boolean; t: (k: string) => string; isMobile?: boolean; hasClients?: boolean }): MenuProps['items'] {
+function buildRowActionsMenu({ record, subEnable, t, isMobile, hasClients, clientCnt = 0 }: { record: DBInboundRecord; subEnable: boolean; t: (k: string) => string; isMobile?: boolean; hasClients?: boolean; clientCnt?: number }): MenuProps['items'] {
   const items: MenuProps['items'] = [];
   if (isMobile) {
     items.push({ key: 'edit', icon: <EditOutlined />, label: t('edit') });
   }
-  if (showQrCodeMenu(record)) {
+  if (showQrCodeMenu(record, clientCnt)) {
     items.push({ key: 'qrcode', icon: <QrcodeOutlined />, label: t('qrCode') });
   }
   if (isInboundMultiUser(record)) {
@@ -277,7 +283,7 @@ function buildRowActionsMenu({ record, subEnable, t, isMobile, hasClients }: { r
   return items;
 }
 
-function RowActionsCell({ record, subEnable, hasClients, onClick }: RowActionsMenuProps) {
+function RowActionsCell({ record, subEnable, hasClients, clientCnt, onClick }: RowActionsMenuProps) {
   const { t } = useTranslation();
   return (
     <div className="action-buttons">
@@ -285,7 +291,7 @@ function RowActionsCell({ record, subEnable, hasClients, onClick }: RowActionsMe
       <Dropdown
         trigger={['click']}
         menu={{
-          items: buildRowActionsMenu({ record, subEnable, t, hasClients }),
+          items: buildRowActionsMenu({ record, subEnable, t, hasClients, clientCnt }),
           onClick: ({ key }) => onClick(key as RowAction),
         }}
       >
@@ -308,6 +314,7 @@ export default function InboundList({
   hasActiveNode,
   onAddInbound,
   onRelay,
+  onBulkDelete,
   onGeneralAction,
   onRowAction,
 }: InboundListProps) {
@@ -316,6 +323,7 @@ export default function InboundList({
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>(null);
   const [statsRecord, setStatsRecord] = useState<DBInboundRecord | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const onSwitchEnable = useCallback(async (dbInbound: DBInboundRecord, next: boolean) => {
     const previous = dbInbound.enable;
@@ -337,6 +345,15 @@ export default function InboundList({
     const sorted = [...dbInbounds].sort((a, b) => fn(a, b, { nodesById, clientCount }));
     return sortOrder === 'descend' ? sorted.reverse() : sorted;
   }, [dbInbounds, sortKey, sortOrder, nodesById, clientCount]);
+
+  // Drop selections that no longer exist (e.g. after a delete/refresh).
+  useEffect(() => {
+    const ids = new Set(dbInbounds.map((r) => r.id));
+    setSelectedIds((prev) => {
+      const next = prev.filter((id) => ids.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [dbInbounds]);
 
   const hasAnyRemark = useMemo(
     () => dbInbounds.some((i) => typeof i.remark === 'string' && i.remark.trim() !== ''),
@@ -370,6 +387,7 @@ export default function InboundList({
             record={record}
             subEnable={subEnable}
             hasClients={(clientCount[record.id]?.clients || 0) > 0}
+            clientCnt={clientCount[record.id]?.clients || 0}
             onClick={(key) => onRowAction({ key, dbInbound: record })}
           />
         ),
@@ -618,7 +636,7 @@ export default function InboundList({
           <Button type="primary" onClick={onAddInbound} icon={<PlusOutlined />}>
             {!isMobile && t('pages.inbounds.addInbound')}
           </Button>
-          <Button onClick={onRelay} icon={<SwapOutlined />}>
+          <Button type="primary" onClick={onRelay} icon={<SwapOutlined />}>
             {!isMobile && t('pages.inbounds.relay.title', { defaultValue: '新建中转' })}
           </Button>
           <Dropdown trigger={['click']} menu={generalActionsMenu}>
@@ -656,7 +674,7 @@ export default function InboundList({
                         trigger={['click']}
                         placement="bottomRight"
                         menu={{
-                          items: buildRowActionsMenu({ record, subEnable, t, isMobile: true, hasClients: (clientCount[record.id]?.clients || 0) > 0 }),
+                          items: buildRowActionsMenu({ record, subEnable, t, isMobile: true, hasClients: (clientCount[record.id]?.clients || 0) > 0, clientCnt: clientCount[record.id]?.clients || 0 }),
                           onClick: ({ key }) => onRowAction({ key: key as RowAction, dbInbound: record }),
                         }}
                       >
@@ -669,10 +687,26 @@ export default function InboundList({
             )}
           </div>
         ) : (
+          <>
+          {selectedIds.length > 0 && (
+            <Space style={{ marginBottom: 8 }}>
+              <span>{t('pages.clients.selectedCount', { count: selectedIds.length, defaultValue: `已选 {count} 项` })}</span>
+              <Button danger icon={<DeleteOutlined />} onClick={() => onBulkDelete(selectedIds)}>
+                {t('delete')}
+              </Button>
+              <Button size="small" type="text" onClick={() => setSelectedIds([])}>
+                {t('clear', { defaultValue: '清除' })}
+              </Button>
+            </Space>
+          )}
           <Table
             columns={columns}
             dataSource={sortedInbounds}
             rowKey={(r) => r.id}
+            rowSelection={{
+              selectedRowKeys: selectedIds,
+              onChange: (keys) => setSelectedIds(keys.map((k) => Number(k))),
+            }}
             pagination={paginationFor(sortedInbounds)}
             scroll={{ x: 1000 }}
             style={{ marginTop: 10 }}
@@ -692,6 +726,7 @@ export default function InboundList({
               setSortOrder((single?.order as SortOrder) || null);
             }}
           />
+          </>
         )}
       </Space>
 

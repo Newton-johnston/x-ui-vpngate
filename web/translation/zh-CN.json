@@ -454,10 +454,20 @@
         "noTag": "未能获取中转入站标签",
         "loadCfgFailed": "读取 Xray 配置失败（中转入站已建，请到 Xray 设置手动加路由）",
         "saveFailed": "保存路由失败",
-        "created": "中转已创建"
+        "created": "中转已创建",
+        "testLanding": "连通测试",
+        "testLandingBtn": "测试落地连通"
       },
       "deleteOrphanCheckbox": "同时删除将不再属于任何入站的 {count} 个客户端",
-      "advancedMode": "高级设置"
+      "advancedMode": "高级设置",
+      "recommendToggle": "推荐协议",
+      "presets": {
+        "addAll": "一键添加全部推荐",
+        "addedN": "已添加 {count} 个推荐协议",
+        "skippedNoCert": "（{count} 个需域名证书已跳过）"
+      },
+      "bulkDeleteTitle": "批量删除入站",
+      "bulkDeleteContent": "确认删除选中的 {count} 个入站？"
     },
     "clients": {
       "add": "添加客户端",
@@ -572,7 +582,8 @@
       "sourceInbound": "入站",
       "sourceStandalone": "独立",
       "attached": "已挂载入站",
-      "unattached": "未挂载（独立）"
+      "unattached": "未挂载（独立）",
+      "selectedCount": "已选 {count} 项"
     },
     "nodes": {
       "title": "服务器",

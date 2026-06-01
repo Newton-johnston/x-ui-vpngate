@@ -52,6 +52,7 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.GET("/getConfigJson", a.getConfigJson)
 	g.GET("/getDb", a.getDb)
 	g.GET("/getNewUUID", a.getNewUUID)
+	g.GET("/getCommonSubId", a.getCommonSubId)
 	g.GET("/getNewX25519Cert", a.getNewX25519Cert)
 	g.GET("/getNewmldsa65", a.getNewmldsa65)
 	g.GET("/getNewmlkem768", a.getNewmlkem768)
@@ -302,6 +303,18 @@ func (a *ServerController) importDB(c *gin.Context) {
 		return
 	}
 	jsonObj(c, I18nWeb(c, "pages.index.importDatabaseSuccess"), nil)
+}
+
+// getCommonSubId returns the panel-wide shared subscription id (created on
+// first use), so preset/one-click inbounds can stamp their clients with it
+// and a single subscription URL aggregates every such node.
+func (a *ServerController) getCommonSubId(c *gin.Context) {
+	id, err := a.settingService.GetCommonSubId()
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonObj(c, id, nil)
 }
 
 // getNewX25519Cert generates a new X25519 certificate.

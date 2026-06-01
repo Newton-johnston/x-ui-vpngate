@@ -222,6 +222,62 @@ export function getPreset(id: PresetId): InboundPreset | undefined {
   return INBOUND_PRESETS.find((p) => p.id === id);
 }
 
+export interface PresetSecretOpts {
+  // Reality key pair (from GET /panel/api/server/getNewX25519Cert).
+  realityPrivateKey?: string;
+  realityPublicKey?: string;
+  // Panel TLS cert paths + domain (from POST /panel/setting/all).
+  certFile?: string;
+  keyFile?: string;
+  domain?: string;
+  // Shared subscription id (from GET /panel/api/server/getCommonSubId) — when
+  // set, stamps every client so one subscription URL aggregates all nodes.
+  subId?: string;
+}
+
+// Inject the runtime secrets a preset can't bake in itself: the Reality key
+// pair (fetched per inbound) and/or the panel's TLS cert + domain. Mutates and
+// returns the row's streamSettings in place. Used by both the single-apply
+// path (modal form) and the batch "add all recommended" path.
+export function applyPresetSecrets(row: RawInboundRow, opts: PresetSecretOpts): RawInboundRow {
+  if (opts.subId) {
+    const settings = row.settings as Record<string, unknown> | undefined;
+    const clients = settings?.clients;
+    if (Array.isArray(clients)) {
+      for (const c of clients) {
+        if (c && typeof c === 'object') (c as Record<string, unknown>).subId = opts.subId;
+      }
+    }
+  }
+  const stream = row.streamSettings as Record<string, unknown> | undefined;
+  if (!stream) return row;
+
+  const reality = stream.realitySettings as Record<string, unknown> | undefined;
+  if (reality) {
+    if (opts.realityPrivateKey != null) reality.privateKey = opts.realityPrivateKey;
+    if (opts.realityPublicKey != null) {
+      const inner = (reality.settings as Record<string, unknown> | undefined) ?? {};
+      inner.publicKey = opts.realityPublicKey;
+      reality.settings = inner;
+    }
+  }
+
+  const tls = stream.tlsSettings as Record<string, unknown> | undefined;
+  if (tls) {
+    if (opts.domain) tls.serverName = opts.domain;
+    if (opts.certFile && opts.keyFile) {
+      const certs = Array.isArray(tls.certificates)
+        ? (tls.certificates as Record<string, unknown>[])
+        : [];
+      if (certs.length === 0) certs.push(emptyFileCert());
+      certs[0].certificateFile = opts.certFile;
+      certs[0].keyFile = opts.keyFile;
+      tls.certificates = certs;
+    }
+  }
+  return row;
+}
+
 // Chinese fallback copy used until the i18n keys are translated across every
 // locale. The modal prefers t(titleKey) and only falls back to these.
 export const PRESET_FALLBACK: Record<PresetId, { title: string; desc: string }> = {

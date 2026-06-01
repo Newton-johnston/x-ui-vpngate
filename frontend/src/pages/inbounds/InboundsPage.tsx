@@ -129,6 +129,7 @@ export default function InboundsPage() {
 
   const [qrOpen, setQrOpen] = useState(false);
   const [qrDbInbound, setQrDbInbound] = useState<DBInbound | null>(null);
+  const [qrClients, setQrClients] = useState<Record<string, unknown>[] | null>(null);
 
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachSource, setAttachSource] = useState<DBInbound | null>(null);
@@ -392,6 +393,46 @@ export default function InboundsPage() {
     });
   }, [modal, refresh, t]);
 
+  const confirmBulkDelete = useCallback(async (ids: number[]) => {
+    if (ids.length === 0) return;
+    // Orphan count across the whole selected set (a client shared between two
+    // selected inbounds counts as orphaned; one also on a kept inbound does not).
+    let orphanCount = 0;
+    const cnt = await HttpUtil.post('/panel/api/inbounds/orphanCountBatch', { ids }, { silent: true, headers: { 'Content-Type': 'application/json' } });
+    if (cnt?.success && typeof cnt.obj === 'number') orphanCount = cnt.obj;
+
+    let purgeClients = false;
+    const content = orphanCount > 0 ? (
+      <div>
+        <div>{t('pages.inbounds.bulkDeleteContent', { count: ids.length, defaultValue: `确认删除选中的 {count} 个入站？` })}</div>
+        <Checkbox
+          style={{ marginTop: 12 }}
+          defaultChecked={false}
+          onChange={(e) => { purgeClients = e.target.checked; }}
+        >
+          {t('pages.inbounds.deleteOrphanCheckbox', {
+            count: orphanCount,
+            defaultValue: `同时删除将不再属于任何入站的 {count} 个客户端`,
+          })}
+        </Checkbox>
+      </div>
+    ) : (
+      t('pages.inbounds.bulkDeleteContent', { count: ids.length, defaultValue: `确认删除选中的 {count} 个入站？` })
+    );
+
+    modal.confirm({
+      title: t('pages.inbounds.bulkDeleteTitle', { defaultValue: '批量删除入站' }),
+      content,
+      okText: t('delete'),
+      okType: 'danger',
+      cancelText: t('cancel'),
+      onOk: async () => {
+        const msg = await HttpUtil.post('/panel/api/inbounds/delBatch', { ids, purgeClients }, { headers: { 'Content-Type': 'application/json' } });
+        if (msg?.success) await refresh();
+      },
+    });
+  }, [modal, refresh, t]);
+
   const confirmResetTraffic = useCallback((dbInbound: DBInbound) => {
     modal.confirm({
       title: t('pages.inbounds.resetConfirmTitle', { remark: dbInbound.remark }),
@@ -502,10 +543,16 @@ export default function InboundsPage() {
         setInfoClientIndex(findClientIndex(target, null));
         setInfoOpen(true);
         break;
-      case 'qrcode':
+      case 'qrcode': {
+        // Pass every client so the modal renders a protocol QR per client
+        // (multi-user inbounds). WireGuard / single-user SS ignore this and
+        // generate from the inbound itself.
+        const settings = coerceInboundJsonField(target.settings) as { clients?: Record<string, unknown>[] };
+        setQrClients(settings.clients || []);
         setQrDbInbound(checkFallback(target));
         setQrOpen(true);
         break;
+      }
       case 'export':
         exportInboundLinks(target);
         break;
@@ -601,6 +648,7 @@ export default function InboundsPage() {
                       hasActiveNode={showNodeInfo}
                       onAddInbound={onAddInbound}
                       onRelay={onRelay}
+                      onBulkDelete={confirmBulkDelete}
                       onGeneralAction={onGeneralAction}
                       onRowAction={({ key, dbInbound }) => onRowAction({ key, dbInbound: dbInbound as unknown as DBInbound })}
                     />
@@ -650,7 +698,8 @@ export default function InboundsPage() {
             open={qrOpen}
             onClose={() => setQrOpen(false)}
             dbInbound={qrDbInbound}
-            client={null}
+            clients={qrClients}
+            protocolOnly
             remarkModel={remarkModel}
             nodeAddress={qrNodeAddress}
             subSettings={subSettings}

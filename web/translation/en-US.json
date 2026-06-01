@@ -481,10 +481,20 @@
         "noTag": "Could not obtain relay inbound tag",
         "loadCfgFailed": "Failed to load Xray config (relay inbound created; add the route manually in Xray settings)",
         "saveFailed": "Failed to save route",
-        "created": "Relay created"
+        "created": "Relay created",
+        "testLanding": "Reachability",
+        "testLandingBtn": "Test landing"
       },
       "deleteOrphanCheckbox": "Also delete {count} client(s) that would no longer belong to any inbound",
-      "advancedMode": "Advanced"
+      "advancedMode": "Advanced",
+      "recommendToggle": "Recommended",
+      "presets": {
+        "addAll": "Add all recommended",
+        "addedN": "Added {count} recommended inbound(s)",
+        "skippedNoCert": " ({count} skipped — need a domain cert)"
+      },
+      "bulkDeleteTitle": "Delete inbounds",
+      "bulkDeleteContent": "Delete the {count} selected inbound(s)?"
     },
     "clients": {
       "add": "Add Client",

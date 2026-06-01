@@ -70,6 +70,8 @@ func (a *InboundController) initRouter(g *gin.RouterGroup) {
 
 	g.POST("/add", a.addInbound)
 	g.POST("/del/:id", a.delInbound)
+	g.POST("/delBatch", a.delInboundsBatch)
+	g.POST("/orphanCountBatch", a.getOrphanCountBatch)
 	g.POST("/update/:id", a.updateInbound)
 	g.POST("/setEnable/:id", a.setInboundEnable)
 	g.POST("/:id/resetTraffic", a.resetInboundTraffic)
@@ -192,6 +194,49 @@ func (a *InboundController) delInbound(c *gin.Context) {
 		return
 	}
 	jsonMsgObj(c, I18nWeb(c, "pages.inbounds.toasts.inboundDeleteSuccess"), id, nil)
+	if needRestart {
+		a.xrayService.SetToNeedRestart()
+	}
+	user := session.GetLoginUser(c)
+	a.broadcastInboundsUpdate(user.Id)
+	notifyClientsChanged()
+}
+
+type inboundBatchRequest struct {
+	Ids          []int `json:"ids"`
+	PurgeClients bool  `json:"purgeClients"`
+}
+
+// getOrphanCountBatch reports how many clients would become standalone if all
+// the listed inbounds were deleted together.
+func (a *InboundController) getOrphanCountBatch(c *gin.Context) {
+	var req inboundBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	n, err := a.clientService.CountOrphansForInbounds(req.Ids)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonObj(c, n, nil)
+}
+
+// delInboundsBatch deletes several inbounds at once, optionally purging the
+// clients that would be left attached to no inbound outside the set.
+func (a *InboundController) delInboundsBatch(c *gin.Context) {
+	var req inboundBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	needRestart, err := a.inboundService.DelInboundsBatch(req.Ids, req.PurgeClients)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundDeleteSuccess"), nil)
 	if needRestart {
 		a.xrayService.SetToNeedRestart()
 	}
