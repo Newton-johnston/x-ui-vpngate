@@ -1032,6 +1032,9 @@ EOF
             echo -e "${green}Access URL:  ${SSL_SCHEME}://${SSL_HOST}:${existing_port}/${existing_webBasePath}${plain}"
         else
             echo -e "${green}SSL certificate already configured. No action needed.${plain}"
+            # Re-install over an existing config prints nothing actionable above,
+            # so surface the access URL here (cert present → https).
+            [[ -n "$server_ip" ]] && echo -e "${green}Access URL: https://${server_ip}:${existing_port}/${existing_webBasePath}${plain}"
         fi
     fi
 
@@ -1216,6 +1219,8 @@ install_x-ui() {
     fi
 
     echo -e "${green}x-ui ${tag_version}${plain} installation finished, it is running now..."
+    echo -e ""
+    echo -e "${yellow}Tip: run ${green}x-ui settings${plain}${yellow} on the server anytime to view the panel URL, username and password.${plain}"
     echo -e ""
     echo -e "┌───────────────────────────────────────────────────────┐
 │  ${blue}x-ui control menu usages (subcommands):${plain}              │
