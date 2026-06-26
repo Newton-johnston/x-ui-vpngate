@@ -10,7 +10,6 @@ import {
   CloseOutlined,
   DashboardOutlined,
   GithubOutlined,
-  HeartOutlined,
   ImportOutlined,
   LogoutOutlined,
   MenuOutlined,
@@ -28,7 +27,6 @@ import { pauseAnimationsUntilLeave, useTheme } from '@/hooks/useTheme';
 import './AppSidebar.css';
 
 const SIDEBAR_COLLAPSED_KEY = 'isSidebarCollapsed';
-const DONATE_URL = 'https://donate.sanaei.dev/';
 const REPO_URL = 'https://github.com/MHSanaei/3x-ui';
 const LOGOUT_KEY = '__logout__';
 
@@ -52,21 +50,6 @@ function readCollapsed(): boolean {
   } catch {
     return false;
   }
-}
-
-function DonateButton({ ariaLabel }: { ariaLabel: string }) {
-  return (
-    <a
-      href={DONATE_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="sidebar-donate"
-      aria-label={ariaLabel}
-      title={ariaLabel}
-    >
-      <HeartOutlined />
-    </a>
-  );
 }
 
 function VersionBadge({ version, collapsed }: { version: string; collapsed?: boolean }) {
@@ -197,7 +180,6 @@ export default function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="brand-actions">
-              <DonateButton ariaLabel={t('menu.donate') || 'Donate'} />
               <ThemeCycleButton
                 id="theme-cycle"
                 isDark={isDark}
@@ -247,7 +229,6 @@ export default function AppSidebar() {
             <span className="drawer-brand">3X-UI</span>
           </div>
           <div className="drawer-header-actions">
-            <DonateButton ariaLabel={t('menu.donate') || 'Donate'} />
             <ThemeCycleButton
               id="theme-cycle-drawer"
               isDark={isDark}
