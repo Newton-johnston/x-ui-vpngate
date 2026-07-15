@@ -26,7 +26,7 @@
 
 ```bash
 # 方式一：带域名 —— 自动申请 SSL 证书并把证书配到面板，其余全部用默认值
-bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh)
+XUI_DOMAIN=panel.example.com bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh)
 
 # 方式二：不带域名 —— 全部用默认值、随机端口，不申请证书
 bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh)
@@ -37,7 +37,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngat
 > - 设了 `XUI_DOMAIN` 会自动开启全自动模式。若你的 shell 下行内变量没生效，可以先下载再执行：
 >   ```bash
 >   curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh -o /tmp/3x-ui-vpngate-install.sh
->   bash /tmp/3x-ui-vpngate-install.sh
+>   XUI_DOMAIN=panel.example.com bash /tmp/3x-ui-vpngate-install.sh
 >   ```
 > - 想自己一步步选（端口、SSL 方式等），去掉环境变量直接运行同一条命令即可进入交互式安装。
 
