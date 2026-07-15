@@ -7,16 +7,29 @@
   </picture>
 </p>
 
-[![Release](https://img.shields.io/github/v/release/Teminuosi/3x-ui.svg)](https://github.com/Teminuosi/3x-ui/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/Teminuosi/3x-ui/release.yml.svg)](https://github.com/Teminuosi/3x-ui/actions)
+[![Release](https://img.shields.io/github/v/release/Newton-johnston/3x-ui-vpngate.svg)](https://github.com/Newton-johnston/3x-ui-vpngate/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/Newton-johnston/3x-ui-vpngate/vpngate-release.yml.svg)](https://github.com/Newton-johnston/3x-ui-vpngate/actions/workflows/vpngate-release.yml)
 [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
-**3X-UI** 是一个基于网页的 Xray-core 控制面板，用来配置和监控各种 VPN / 代理协议。
+**3x-ui-vpngate** 将 3x-ui 的 Xray 入站与订阅管理能力，和 AimiliVPN 的 VPNGate 节点测速、自动连接及本地代理出口整合到同一套部署方案中。
 
-本仓库是在 [MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui) 基础上做的**二次开发分支（fork）**，目标是让"搭协议"这件事**点几下就能完成**：内置一键协议模板、中转、多服务器下发、批量管理、扫码导入等功能，界面做了中文化优化。
+本仓库基于 [Teminuosi/3x-ui](https://github.com/Teminuosi/3x-ui) 和 [AimiliVPN](https://github.com/baoweise-bot/aimili-vpngate) 的 GPL-3.0 代码整合。它保留 3x-ui 的协议模板、中转、多服务器、批量管理、订阅和二维码功能，并新增可由面板配置的 VPNGate 出站。
 
 > [!IMPORTANT]
 > 本项目仅供个人学习与通信使用，请勿用于任何非法用途，也不建议用于生产环境。
+
+### 整合后的流量路径
+
+```text
+客户端 → 3x-ui / Xray 入站 → 指定路由 → AimiliVPN 本地 SOCKS5 → VPNGate 节点
+```
+
+### 新增的 VPNGate 功能
+
+- 在 Xray「基础配置」中配置 AimiliVPN / VPNGate 出站。
+- 可选择哪些入站标签通过 VPNGate 出口；不填写时仅创建 `vpngate` 出站供手动路由引用。
+- 面板可检查 AimiliVPN 本地代理状态，并自动写入 Xray 的 SOCKS5 出站和路由规则。
+- AimiliVPN 代理默认固定监听 `127.0.0.1:7928`，不暴露为公网代理。
 
 ---
 

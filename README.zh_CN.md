@@ -15,12 +15,12 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/mhsanaei/3x-ui/v3.svg)](https://pkg.go.dev/github.com/mhsanaei/3x-ui/v3)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mhsanaei/3x-ui/v3)](https://goreportcard.com/report/github.com/mhsanaei/3x-ui/v3)
 
-**3X-UI** — 一个基于网页的高级开源控制面板，专为管理 Xray-core 服务器而设计。它提供了用户友好的界面，用于配置和监控各种 VPN 和代理协议。
+**3x-ui-vpngate** 是 3x-ui 与 AimiliVPN/VPNGate 的整合版：3x-ui 管理 Xray 入站、订阅和用户，AimiliVPN 提供 VPNGate 节点测速、自动连接和本地代理出口。
 
 > [!IMPORTANT]
 > 本项目仅用于个人使用和通信，请勿将其用于非法目的，请勿在生产环境中使用。
 
-作为原始 X-UI 项目的增强版本，3X-UI 提供了更好的稳定性、更广泛的协议支持和额外的功能。
+流量路径：`客户端 → Xray 入站 → vpngate 出站 → AimiliVPN 本地 SOCKS5 → VPNGate`。代理默认仅监听 `127.0.0.1:7928`，不会开放为公网跳板。
 
 ## 快速开始
 
