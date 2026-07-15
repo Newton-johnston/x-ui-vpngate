@@ -29,7 +29,10 @@ jobs:
           npm ci
           npm run build
       - name: Build Linux binary
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o x-ui .
+        # SQLite uses github.com/mattn/go-sqlite3 and therefore needs CGO.
+        # Build on the Linux runner so the resulting binary has a native
+        # Linux SQLite driver instead of the disabled-CGO stub.
+        run: CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o x-ui .
       - name: Assemble package
         run: |
           mkdir package
