@@ -25,7 +25,7 @@
 ## 快速开始
 
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/Teminuosi/3x-ui/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh)
 ```
 
 完整文档请参阅 [项目Wiki](https://github.com/MHSanaei/3x-ui/wiki)。
