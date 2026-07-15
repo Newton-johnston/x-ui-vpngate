@@ -38,7 +38,7 @@ jobs:
           mkdir package
           cp x-ui package/
           cp -R deploy third_party package/
-          cp NOTICE LICENSE package/
+          cp NOTICE LICENSE update-vpngate.sh package/
           tar -C package -czf 3x-ui-vpngate-linux-amd64.tar.gz .
       - uses: actions/upload-artifact@v4
         with:

@@ -5,9 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/3x-ui/third_party/aimili-vpngate
+WorkingDirectory=/opt/3x-ui-vpngate/third_party/aimili-vpngate
 Environment=LOCAL_PROXY_HOST=127.0.0.1
-ExecStart=/usr/bin/python3 /opt/3x-ui/third_party/aimili-vpngate/vpngate_manager.py
+ExecStart=/usr/bin/python3 /opt/3x-ui-vpngate/third_party/aimili-vpngate/vpngate_manager.py
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

@@ -11,12 +11,18 @@ if [[ "${EUID}" -ne 0 ]]; then
   echo "Please run as root."
   exit 1
 fi
+if [[ "$(uname -m)" != "x86_64" ]]; then
+  echo "Only x86_64 Linux is supported by the current release package."
+  exit 1
+fi
 
 apt-get update
 apt-get install -y ca-certificates curl openvpn python3
 install -d -m 0755 "${INSTALL_DIR}"
-curl -fL "${RELEASE_URL}" -o /tmp/3x-ui-vpngate.tar.gz
-tar -xzf /tmp/3x-ui-vpngate.tar.gz -C "${INSTALL_DIR}"
+archive="$(mktemp /tmp/3x-ui-vpngate.XXXXXX.tar.gz)"
+trap 'rm -f "${archive}"' EXIT
+curl --fail --location --retry 3 "${RELEASE_URL}" -o "${archive}"
+tar -xzf "${archive}" -C "${INSTALL_DIR}"
 
 # Install the upstream 3x-ui runtime (service unit, Xray core and defaults),
 # then replace only the panel binary with this release's VPNGate-aware build.
@@ -30,6 +36,9 @@ install -m 0644 "${INSTALL_DIR}/deploy/aimili-vpngate.service" /etc/systemd/syst
 systemctl daemon-reload
 systemctl enable --now aimili-vpngate
 systemctl restart x-ui
+
+systemctl is-active --quiet x-ui
+systemctl is-active --quiet aimili-vpngate
 
 echo "AimiliVPN is running with its proxy bound to 127.0.0.1:7928."
 echo "3x-ui is installed. Use the VPNGate card in Xray settings after logging in."
