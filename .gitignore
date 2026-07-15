@@ -3,6 +3,9 @@
 .vscode/
 .claude/
 .cache/
+.go-cache/
+.go-path/
+.npm-cache/
 .sync*
 
 # Ignore log files
@@ -12,6 +15,8 @@ log/
 # Ignore temporary files
 tmp/
 *.tar.gz
+*.zip
+build-*.err
 
 # Ignore build and distribution directories
 backup/

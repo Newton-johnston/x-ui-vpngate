@@ -1,0 +1,17 @@
+[Unit]
+Description=AimiliVPN VPNGate local proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/3x-ui/third_party/aimili-vpngate
+Environment=LOCAL_PROXY_HOST=127.0.0.1
+ExecStart=/usr/bin/python3 /opt/3x-ui/third_party/aimili-vpngate/vpngate_manager.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

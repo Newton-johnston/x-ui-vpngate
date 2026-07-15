@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Button, Collapse, Input, Modal, Select, Space, Switch } from 'antd';
 import { CloudOutlined, ApiOutlined } from '@ant-design/icons';
@@ -7,6 +7,7 @@ import { OutboundDomainStrategies } from '@/schemas/primitives';
 import SettingListItem from '@/components/SettingListItem';
 import type { XraySettingsValue, SetTemplate } from '@/hooks/useXraySetting';
 import './BasicsTab.css';
+import VPNGateModal from './VPNGateModal';
 
 interface BasicsTabProps {
   templateSettings: XraySettingsValue | null;
@@ -152,6 +153,7 @@ export default function BasicsTab({
 }: BasicsTabProps) {
   const { t } = useTranslation();
   const [modal, modalContextHolder] = Modal.useModal();
+  const [vpnGateOpen, setVPNGateOpen] = useState(false);
 
   const mutate = useCallback(
     (mutator: (next: XraySettingsValue) => void) => {
@@ -506,6 +508,13 @@ export default function BasicsTab({
           />
 
           <SettingListItem
+            title="AimiliVPN / VPNGate"
+            description="将指定 Xray 入站通过 AimiliVPN 的本地 SOCKS5 出站。"
+            paddings="small"
+            control={<Button type="primary" onClick={() => setVPNGateOpen(true)} icon={<CloudOutlined />}>配置 VPNGate</Button>}
+          />
+
+          <SettingListItem
             title={t('pages.xray.nordRouting')}
             description={t('pages.xray.nordRoutingDesc')}
             paddings="small"
@@ -544,6 +553,7 @@ export default function BasicsTab({
   return (
     <>
       {modalContextHolder}
+      <VPNGateModal open={vpnGateOpen} onClose={() => setVPNGateOpen(false)} />
       <Collapse defaultActiveKey={['1']} items={items} />
     </>
   );

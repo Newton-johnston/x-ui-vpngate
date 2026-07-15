@@ -51,6 +51,7 @@ func (a *XUIController) initRouter(g *gin.RouterGroup) {
 
 	a.settingController = NewSettingController(g)
 	a.xraySettingController = NewXraySettingController(g)
+	NewVPNGateController(g)
 }
 
 // panelSPA serves the React SPA shell. Every GET under /panel/ that isn't an
