@@ -17,7 +17,6 @@ import {
 import {
   PlusOutlined,
   CloudOutlined,
-  ApiOutlined,
   RetweetOutlined,
   MoreOutlined,
   EditOutlined,
@@ -36,6 +35,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { SizeFormatter } from '@/utils';
 import { OutboundProtocols as Protocols } from '@/schemas/primitives';
 import OutboundFormModal from './OutboundFormModal';
+import VPNGateModal from './VPNGateModal';
 import type { XraySettingsValue, SetTemplate, OutboundTestState, OutboundTrafficRow } from '@/hooks/useXraySetting';
 import './OutboundsTab.css';
 
@@ -51,7 +51,6 @@ interface OutboundsTabProps {
   onTest: (index: number, mode: string) => void;
   onTestAll: (mode: string) => void;
   onShowWarp: () => void;
-  onShowNord: () => void;
 }
 
 interface OutboundRow {
@@ -119,12 +118,12 @@ export default function OutboundsTab({
   onTest,
   onTestAll,
   onShowWarp,
-  onShowNord,
 }: OutboundsTabProps) {
   const { t } = useTranslation();
   const [modal, modalContextHolder] = Modal.useModal();
   const [testMode, setTestMode] = useState<'tcp' | 'http'>('tcp');
   const [modalOpen, setModalOpen] = useState(false);
+  const [vpnGateOpen, setVPNGateOpen] = useState(false);
   const [editingOutbound, setEditingOutbound] = useState<Record<string, unknown> | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [existingTags, setExistingTags] = useState<string[]>([]);
@@ -391,8 +390,8 @@ export default function OutboundsTab({
               <Button type="primary" icon={<CloudOutlined />} onClick={onShowWarp}>
                 WARP
               </Button>
-              <Button type="primary" icon={<ApiOutlined />} onClick={onShowNord}>
-                NordVPN
+              <Button type="primary" icon={<CloudOutlined />} onClick={() => setVPNGateOpen(true)}>
+                VPNGate
               </Button>
             </Space>
           </Col>
@@ -507,6 +506,13 @@ export default function OutboundsTab({
           outbound={editingOutbound}
           existingTags={existingTags}
           onClose={() => setModalOpen(false)}
+          onConfirm={onConfirm}
+        />
+        <VPNGateModal
+          open={vpnGateOpen}
+          onClose={() => setVPNGateOpen(false)}
+          outbounds={outbounds}
+          routing={routing}
           onConfirm={onConfirm}
         />
       </Space>

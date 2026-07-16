@@ -41,6 +41,18 @@
       "protocol": "blackhole",
       "settings": {},
       "tag": "blocked"
+    },
+    {
+      "protocol": "socks",
+      "settings": {
+        "servers": [
+          {
+            "address": "127.0.0.1",
+            "port": 7928
+          }
+        ]
+      },
+      "tag": "vpngate"
     }
   ],
   "policy": {

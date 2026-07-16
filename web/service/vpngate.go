@@ -1,9 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +29,104 @@ type VPNGateStatus struct {
 	Reachable bool   `json:"reachable"`
 	Error     string `json:"error,omitempty"`
 }
+
+// VPNGateOverview is the small, credential-free view rendered in the 3x-ui
+// modal. The Aimili management password never leaves the server.
+type VPNGateOverview struct {
+	Connected          bool   `json:"connected"`
+	Connecting         bool   `json:"connecting"`
+	AutoConnect        bool   `json:"autoConnect"`
+	Country            string `json:"country"`
+	IP                 string `json:"ip"`
+	Latency            any    `json:"latency"`
+	IPType             string `json:"ipType"`
+	ASN                string `json:"asn"`
+	AvailableNodes     int    `json:"availableNodes"`
+	TotalNodes         int    `json:"totalNodes"`
+	FailedNodes        int    `json:"failedNodes"`
+	Message            string `json:"message"`
+}
+
+type vpnGateUIConfig struct {
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	SecretPath string `json:"secret_path"`
+	Port       int    `json:"port"`
+	Enabled    bool   `json:"connection_enabled"`
+}
+
+func vpnGateDataDir() string {
+	if dir := strings.TrimSpace(os.Getenv("VPNGATE_DATA_DIR")); dir != "" {
+		return dir
+	}
+	return "/opt/3x-ui-vpngate/third_party/aimili-vpngate/vpngate_data"
+}
+
+func (s *VPNGateService) managerRequest(method, apiPath string, payload any, result any) error {
+	raw, err := os.ReadFile(vpnGateDataDir() + "/ui_auth.json")
+	if err != nil {
+		return common.NewError("VPNGate is not initialized yet")
+	}
+	var cfg vpnGateUIConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return common.NewError("VPNGate management configuration is invalid")
+	}
+	if cfg.Port < 1 || cfg.Port > 65535 || cfg.Username == "" || cfg.Password == "" || strings.ContainsAny(cfg.SecretPath, "/\\") {
+		return common.NewError("VPNGate management configuration is incomplete")
+	}
+	base := fmt.Sprintf("http://127.0.0.1:%d/%s/api/", cfg.Port, cfg.SecretPath)
+	loginBody, _ := json.Marshal(map[string]string{"username": cfg.Username, "password": cfg.Password})
+	client := &http.Client{Timeout: 8 * time.Second}
+	login, err := http.NewRequest(http.MethodPost, base+"login", bytes.NewReader(loginBody))
+	if err != nil { return err }
+	login.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(login)
+	if err != nil { return common.NewError("VPNGate local service is unavailable") }
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK { return common.NewError("VPNGate local authentication failed") }
+	var session string
+	for _, cookie := range resp.Cookies() { if cookie.Name == "session" { session = cookie.Value; break } }
+	if session == "" { return common.NewError("VPNGate local session was not created") }
+
+	var body io.Reader
+	if payload != nil { encoded, _ := json.Marshal(payload); body = bytes.NewReader(encoded) }
+	req, err := http.NewRequest(method, base+apiPath, body)
+	if err != nil { return err }
+	req.AddCookie(&http.Cookie{Name: "session", Value: session})
+	if payload != nil { req.Header.Set("Content-Type", "application/json") }
+	resp, err = client.Do(req)
+	if err != nil { return common.NewError("VPNGate local request failed") }
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 { return common.NewErrorf("VPNGate request failed: %s", strings.TrimSpace(string(data))) }
+	if result != nil && len(data) > 0 { return json.Unmarshal(data, result) }
+	return nil
+}
+
+// Overview reads the active VPNGate node through its loopback-only management API.
+func (s *VPNGateService) Overview() (*VPNGateOverview, error) {
+	var data struct { Nodes []map[string]any `json:"nodes"`; State map[string]any `json:"state"` }
+	if err := s.managerRequest(http.MethodGet, "nodes", nil, &data); err != nil { return nil, err }
+	o := &VPNGateOverview{AutoConnect: true, Message: fmt.Sprint(data.State["last_check_message"])}
+	if enabled, ok := data.State["connection_enabled"].(bool); ok { o.AutoConnect = enabled }
+	if connecting, ok := data.State["is_connecting"].(bool); ok { o.Connecting = connecting }
+	for _, node := range data.Nodes {
+		o.TotalNodes++
+		if node["probe_status"] == "available" { o.AvailableNodes++ }
+		if node["probe_status"] == "unavailable" { o.FailedNodes++ }
+		if node["active"] != true { continue }
+		o.Connected = true
+		o.Country, _ = node["country"].(string); if o.Country == "" { o.Country, _ = node["location"].(string) }
+		o.IP, _ = node["ip"].(string); if o.IP == "" { o.IP, _ = node["remote_host"].(string) }
+		o.Latency = node["latency_ms"]
+		o.IPType, _ = node["ip_type"].(string)
+		o.ASN, _ = node["asn"].(string)
+	}
+	return o, nil
+}
+
+func (s *VPNGateService) Refresh() error { var out map[string]any; return s.managerRequest(http.MethodPost, "refresh_nodes", map[string]any{}, &out) }
+func (s *VPNGateService) Disconnect() error { var out map[string]any; return s.managerRequest(http.MethodPost, "disconnect", map[string]any{}, &out) }
 
 func validateVPNGateEndpoint(host string, port int) error {
 	host = strings.TrimSpace(host)

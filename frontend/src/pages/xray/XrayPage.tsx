@@ -365,7 +365,6 @@ export default function XrayPage() {
                               onTest={onTestOutbound}
                               onTestAll={testAllOutbounds}
                               onShowWarp={() => setWarpOpen(true)}
-                              onShowNord={() => setNordOpen(true)}
                             />
                           ),
                         },

@@ -19,10 +19,17 @@ type VPNGateController struct {
 func NewVPNGateController(g *gin.RouterGroup) *VPNGateController {
 	a := &VPNGateController{}
 	g = g.Group("/vpngate")
+	g.GET("/overview", a.overview)
 	g.POST("/status", a.status)
 	g.POST("/apply", a.apply)
+	g.POST("/refresh", a.refresh)
+	g.POST("/disconnect", a.disconnect)
 	return a
 }
+
+func (a *VPNGateController) overview(c *gin.Context) { result, err := a.service.Overview(); jsonObj(c, result, err) }
+func (a *VPNGateController) refresh(c *gin.Context) { jsonObj(c, nil, a.service.Refresh()) }
+func (a *VPNGateController) disconnect(c *gin.Context) { jsonObj(c, nil, a.service.Disconnect()) }
 
 func (a *VPNGateController) endpoint(c *gin.Context) (string, int, error) {
 	host := c.DefaultPostForm("host", "127.0.0.1")
