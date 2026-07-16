@@ -512,7 +512,7 @@ export default function OutboundsTab({
           open={vpnGateOpen}
           onClose={() => setVPNGateOpen(false)}
           outbounds={outbounds}
-          routing={routing}
+          routing={templateSettings?.routing}
           onConfirm={onConfirm}
         />
       </Space>
