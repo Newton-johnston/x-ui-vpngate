@@ -143,7 +143,9 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
       const msg = await HttpUtil.post('/panel/vpngate/apply', payload);
       if (!msg.success) throw new Error(msg.msg);
       messageApi.success('VPNGate 出站已保存，Xray 将自动重载');
-      if (onConfirm) onConfirm();
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 1000);
       onClose();
     } catch (err) {
       messageApi.error(err instanceof Error ? err.message : '保存 VPNGate 出站失败');
