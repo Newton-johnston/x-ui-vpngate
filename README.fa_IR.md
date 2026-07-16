@@ -25,7 +25,7 @@
 ## شروع سریع
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/install-vpngate.sh)
 ```
 
 برای مستندات کامل، لطفاً به [ویکی پروژه](https://github.com/MHSanaei/3x-ui/wiki) مراجعه کنید.

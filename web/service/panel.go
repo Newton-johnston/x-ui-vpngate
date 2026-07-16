@@ -31,7 +31,7 @@ type PanelUpdateInfo struct {
 }
 
 const (
-	panelUpdaterURL      = "https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/update-vpngate.sh"
+	panelUpdaterURL      = "https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/update-vpngate.sh"
 	maxPanelUpdaterBytes = 2 << 20
 )
 
@@ -170,7 +170,7 @@ func downloadPanelUpdater() (string, error) {
 
 func fetchLatestPanelVersion() (string, error) {
 	client := (&SettingService{}).NewProxiedHTTPClient(10 * time.Second)
-	resp, err := client.Get("https://api.github.com/repos/Newton-johnston/3x-ui-vpngate/releases/latest")
+	resp, err := client.Get("https://api.github.com/repos/Newton-johnston/x-ui-vpngate/releases/latest")
 	if err != nil {
 		return "", err
 	}

@@ -25,7 +25,7 @@ Como una versión mejorada del proyecto X-UI original, 3X-UI proporciona mayor e
 ## Inicio Rápido
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/install-vpngate.sh)
 ```
 
 Para documentación completa, visita la [Wiki del proyecto](https://github.com/MHSanaei/3x-ui/wiki).

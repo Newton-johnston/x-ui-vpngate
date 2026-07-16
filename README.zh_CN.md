@@ -15,7 +15,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/mhsanaei/3x-ui/v3.svg)](https://pkg.go.dev/github.com/mhsanaei/3x-ui/v3)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mhsanaei/3x-ui/v3)](https://goreportcard.com/report/github.com/mhsanaei/3x-ui/v3)
 
-**3x-ui-vpngate** 是 3x-ui 与 AimiliVPN/VPNGate 的整合版：3x-ui 管理 Xray 入站、订阅和用户，AimiliVPN 提供 VPNGate 节点测速、自动连接和本地代理出口。
+**x-ui-vpngate** 是 3x-ui 与 AimiliVPN/VPNGate 的整合版：3x-ui 管理 Xray 入站、订阅和用户，AimiliVPN 提供 VPNGate 节点测速、自动连接和本地代理出口。
 
 > [!IMPORTANT]
 > 本项目仅用于个人使用和通信，请勿将其用于非法目的，请勿在生产环境中使用。
@@ -25,7 +25,7 @@
 ## 快速开始
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/install-vpngate.sh)
 ```
 
 完整文档请参阅 [项目Wiki](https://github.com/MHSanaei/3x-ui/wiki)。

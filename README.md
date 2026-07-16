@@ -7,11 +7,11 @@
   </picture>
 </p>
 
-[![Release](https://img.shields.io/github/v/release/Newton-johnston/3x-ui-vpngate.svg)](https://github.com/Newton-johnston/3x-ui-vpngate/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/Newton-johnston/3x-ui-vpngate/vpngate-release.yml.svg)](https://github.com/Newton-johnston/3x-ui-vpngate/actions/workflows/vpngate-release.yml)
+[![Release](https://img.shields.io/github/v/release/Newton-johnston/x-ui-vpngate.svg)](https://github.com/Newton-johnston/x-ui-vpngate/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/Newton-johnston/x-ui-vpngate/vpngate-release.yml.svg)](https://github.com/Newton-johnston/x-ui-vpngate/actions/workflows/vpngate-release.yml)
 [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
-**3x-ui-vpngate** 将 3x-ui 的 Xray 入站与订阅管理能力，和 AimiliVPN 的 VPNGate 节点测速、自动连接及本地代理出口整合到同一套部署方案中。
+**x-ui-vpngate** 将 3x-ui 的 Xray 入站与订阅管理能力，和 AimiliVPN 的 VPNGate 节点测速、自动连接及本地代理出口整合到同一套部署方案中。
 
 本仓库基于 [Teminuosi/3x-ui](https://github.com/Teminuosi/3x-ui) 和 [AimiliVPN](https://github.com/baoweise-bot/aimili-vpngate) 的 GPL-3.0 代码整合。它保留 3x-ui 的协议模板、中转、多服务器、批量管理、订阅和二维码功能，并新增可由面板配置的 VPNGate 出站。
 
@@ -39,17 +39,17 @@
 
 ```bash
 # 方式一：带域名 —— 自动申请 SSL 证书并把证书配到面板，其余全部用默认值
-XUI_DOMAIN=panel.example.com bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh)
+XUI_DOMAIN=panel.example.com bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/install-vpngate.sh)
 
 # 方式二：不带域名 —— 全部用默认值、随机端口，不申请证书
-bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/install-vpngate.sh)
 ```
 
 装完后，在服务器上输入 `x-ui` 即可打开管理菜单（重启面板、查看账号、改端口、更新/卸载等）。
 
 > - 设了 `XUI_DOMAIN` 会自动开启全自动模式。若你的 shell 下行内变量没生效，可以先下载再执行：
 >   ```bash
->   curl -fsSL https://raw.githubusercontent.com/Newton-johnston/3x-ui-vpngate/main/install-vpngate.sh -o /tmp/3x-ui-vpngate-install.sh
+>   curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/install-vpngate.sh -o /tmp/3x-ui-vpngate-install.sh
 >   XUI_DOMAIN=panel.example.com bash /tmp/3x-ui-vpngate-install.sh
 >   ```
 > - 想自己一步步选（端口、SSL 方式等），去掉环境变量直接运行同一条命令即可进入交互式安装。
