@@ -122,12 +122,35 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
   async function testSingleNode(id: string) {
     setTestingNodeId(id);
     try {
-      const result = await HttpUtil.post('/panel/vpngate/test_node', { id }, { silent: true });
-      if (!result.success) throw new Error(result.msg || '节点测速失败');
-      messageApi.success('节点测速完成！');
+      const result = await HttpUtil.post<any>('/panel/vpngate/test_node', { id }, { silent: true });
+      if (result && !result.success) {
+        const msgStr = result.msg || '';
+        if (msgStr.includes('当前已有连接') || msgStr.includes('409') || msgStr.includes('CONFLICT') || msgStr.includes('failed')) {
+          messageApi.error('当前已有 VPN 连接正在运行，请断开连接后再进行测速');
+        } else {
+          messageApi.error(`节点测速失败: ${msgStr}`);
+        }
+        return;
+      }
+
+      const node = result?.obj?.node;
+      if (node) {
+        if (node.probe_status === 'available') {
+          messageApi.success(`节点可用，连接耗时 ${node.latency_ms}ms`);
+        } else {
+          messageApi.error(`节点不可用，测试失败 (信息: ${node.probe_message || '连接超时'})`);
+        }
+      } else {
+        messageApi.success('节点测试完成');
+      }
       void load(true);
     } catch (err) {
-      messageApi.error(err instanceof Error ? err.message : '节点测速失败');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('当前已有连接') || errMsg.includes('409') || errMsg.includes('CONFLICT') || errMsg.includes('failed')) {
+        messageApi.error('当前已有 VPN 连接正在运行，请断开连接后再进行测速');
+      } else {
+        messageApi.error('节点连接超时或本地代理服务响应失败');
+      }
     } finally {
       setTestingNodeId(null);
     }
