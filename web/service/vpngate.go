@@ -45,6 +45,8 @@ type VPNGateOverview struct {
 	TotalNodes         int    `json:"totalNodes"`
 	FailedNodes        int    `json:"failedNodes"`
 	Message            string `json:"message"`
+	Nodes              any    `json:"nodes,omitempty"`
+	State              any    `json:"state,omitempty"`
 }
 
 type vpnGateUIConfig struct {
@@ -122,11 +124,27 @@ func (s *VPNGateService) Overview() (*VPNGateOverview, error) {
 		o.IPType, _ = node["ip_type"].(string)
 		o.ASN, _ = node["asn"].(string)
 	}
+	o.Nodes = data.Nodes
+	o.State = data.State
 	return o, nil
 }
 
 func (s *VPNGateService) Refresh() error { var out map[string]any; return s.managerRequest(http.MethodPost, "refresh_nodes", map[string]any{}, &out) }
 func (s *VPNGateService) Disconnect() error { var out map[string]any; return s.managerRequest(http.MethodPost, "disconnect", map[string]any{}, &out) }
+
+func (s *VPNGateService) ConnectNode(nodeID string) error {
+	var out map[string]any
+	return s.managerRequest(http.MethodPost, "connect", map[string]any{"id": nodeID}, &out)
+}
+
+func (s *VPNGateService) UpdateRouting(mode, country, ipType string) error {
+	var out map[string]any
+	return s.managerRequest(http.MethodPost, "update_routing", map[string]any{
+		"routing_mode":    mode,
+		"force_country":   country,
+		"routing_ip_type": ipType,
+	}, &out)
+}
 
 func validateVPNGateEndpoint(host string, port int) error {
 	host = strings.TrimSpace(host)
