@@ -29,3 +29,40 @@
   margin-bottom: 16px;
 }
 
+/* 高级定制：扁平化、无边界的暗黑/明亮融入设计 */
+.vpngate-advanced .ant-collapse {
+  background: transparent !important;
+  border: none !important;
+}
+.vpngate-advanced .ant-collapse-item {
+  border-bottom: 1px solid var(--ant-color-border-secondary) !important;
+}
+.vpngate-advanced .ant-collapse-header {
+  padding: 8px 4px !important;
+  font-weight: 500 !important;
+  background: transparent !important;
+}
+.vpngate-advanced .ant-collapse-content {
+  background: transparent !important;
+  border: none !important;
+}
+.vpngate-advanced .ant-collapse-content-box {
+  padding: 0 !important;
+}
+.vpngate-advanced .ant-table {
+  background: transparent !important;
+}
+.vpngate-advanced .ant-table-thead > tr > th {
+  background: transparent !important;
+  border-bottom: 1px solid var(--ant-color-border-secondary) !important;
+  color: var(--ant-color-text-secondary) !important;
+  padding: 8px !important;
+}
+.vpngate-advanced .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--ant-color-border-secondary) !important;
+  background: transparent !important;
+  padding: 8px !important;
+}
+.vpngate-advanced .ant-table-tbody > tr:hover > td {
+  background: var(--ant-color-fill-quaternary) !important;
+}

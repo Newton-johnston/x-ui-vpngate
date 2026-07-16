@@ -146,6 +146,14 @@ func (s *VPNGateService) UpdateRouting(mode, country, ipType string) error {
 	}, &out)
 }
 
+func (s *VPNGateService) TestNode(nodeID string) (any, error) {
+	var out map[string]any
+	if err := s.managerRequest(http.MethodPost, "test_node", map[string]any{"id": nodeID}, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func validateVPNGateEndpoint(host string, port int) error {
 	host = strings.TrimSpace(host)
 	if host != "127.0.0.1" && host != "::1" && host != "localhost" {

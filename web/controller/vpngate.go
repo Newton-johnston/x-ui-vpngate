@@ -26,6 +26,7 @@ func NewVPNGateController(g *gin.RouterGroup) *VPNGateController {
 	g.POST("/disconnect", a.disconnect)
 	g.POST("/connect", a.connect)
 	g.POST("/update_routing", a.updateRouting)
+	g.POST("/test_node", a.testNode)
 	return a
 }
 
@@ -51,6 +52,16 @@ func (a *VPNGateController) updateRouting(c *gin.Context) {
 		return
 	}
 	jsonObj(c, nil, a.service.UpdateRouting(mode, country, ipType))
+}
+
+func (a *VPNGateController) testNode(c *gin.Context) {
+	id := c.PostForm("id")
+	if id == "" {
+		jsonObj(c, nil, common.NewError("node ID is required"))
+		return
+	}
+	res, err := a.service.TestNode(id)
+	jsonObj(c, res, err)
 }
 
 func (a *VPNGateController) endpoint(c *gin.Context) (string, int, error) {

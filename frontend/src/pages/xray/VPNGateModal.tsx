@@ -41,8 +41,9 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
   const [actionLoading, setActionLoading] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
 
-  // 高级设置展示状态
+  // 高级设置展示状态与测试相关
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [testingNodeId, setTestingNodeId] = useState<string | null>(null);
   const [form] = Form.useForm<{ host: string; port: number; inboundTags: string }>();
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<{ reachable: boolean; error?: string } | null>(null);
@@ -63,11 +64,11 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
   useEffect(() => {
     if (!open) return;
     void load();
-    const timer = window.setInterval(() => void load(true), 5000); // 提频至 5s 一次轮询以提升响应速度
+    const timer = window.setInterval(() => void load(true), 3000); // 增加轮询频次至 3s 以让连接百分比与网卡 IP 更加流畅更新
     return () => window.clearInterval(timer);
   }, [open, load]);
 
-  // 当打开 modal 或外层 outbounds/routing 变化时，初始化高级表单数值
+  // 初始化高级表单数值
   useEffect(() => {
     if (!open) return;
     const vpOutbound = outbounds?.find((o) => o.tag === 'vpngate');
@@ -109,11 +110,26 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
       const result = await HttpUtil.post('/panel/vpngate/connect', { id }, { silent: true });
       if (!result.success) throw new Error(result.msg || '连接节点失败');
       messageApi.success('正在请求连接指定节点，请稍候...');
-      window.setTimeout(() => void load(true), 2000);
+      window.setTimeout(() => void load(true), 1500);
     } catch (err) {
       messageApi.error(err instanceof Error ? err.message : '连接节点失败');
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  // 测试单个指定节点可用性
+  async function testSingleNode(id: string) {
+    setTestingNodeId(id);
+    try {
+      const result = await HttpUtil.post('/panel/vpngate/test_node', { id }, { silent: true });
+      if (!result.success) throw new Error(result.msg || '节点测速失败');
+      messageApi.success('节点测速完成！');
+      void load(true);
+    } catch (err) {
+      messageApi.error(err instanceof Error ? err.message : '节点测速失败');
+    } finally {
+      setTestingNodeId(null);
     }
   }
 
@@ -163,7 +179,18 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
   const countryGroups = useMemo(() => {
     const groups: Record<string, { nodes: any[]; count: number }> = {};
     (data.nodes || []).forEach((node) => {
-      const country = node.country || node.location || 'Unknown';
+      let country = node.country || node.location || 'Unknown';
+      // 英文国家汉化映射，让列表更加美观接地气
+      if (country === 'Japan') country = '日本';
+      else if (country === 'United States') country = '美国';
+      else if (country === 'Korea') country = '韩国';
+      else if (country === 'Thailand') country = '泰国';
+      else if (country === 'Romania') country = '罗马尼亚';
+      else if (country === 'Russian Federation') country = '俄罗斯';
+      else if (country === 'Argentina') country = '阿根廷';
+      else if (country === 'Canada') country = '加拿大';
+      else if (country === 'Macau') country = '澳门';
+
       if (!groups[country]) {
         groups[country] = { nodes: [], count: 0 };
       }
@@ -243,8 +270,35 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
   // 定义节点 Table 表格列
   const columns = [
     { title: '国家', dataIndex: 'country', key: 'country', render: (val: string, record: any) => val || record.location || '—' },
-    { title: '延迟', dataIndex: 'latency_ms', key: 'latency', render: (val: any) => val == null ? '—' : `${val} ms` },
-    { title: 'IP 类型', dataIndex: 'ip_type', key: 'ipType', render: (val: string) => val === 'residential' ? '住宅IP' : val === 'hosting' ? '机房IP' : val || '—' },
+    {
+      title: '延迟',
+      dataIndex: 'latency_ms',
+      key: 'latency',
+      render: (val: any) => {
+        if (val == null || val === '') return <span style={{ color: 'var(--ant-color-text-placeholder)' }}>—</span>;
+        const num = Number(val);
+        let color = 'var(--ant-color-text-secondary)';
+        if (num > 0) {
+          if (num < 50) color = '#00b96b';
+          else if (num < 250) color = '#d46b08';
+        }
+        return <strong style={{ color }}>{num} ms</strong>;
+      }
+    },
+    {
+      title: 'IP 类型',
+      dataIndex: 'ip_type',
+      key: 'ipType',
+      render: (val: string) => {
+        if (val === 'residential') {
+          return <Tag color="cyan" style={{ borderRadius: '10px', fontSize: '11px', lineHeight: '18px', border: 'none' }}>住宅IP</Tag>;
+        }
+        if (val === 'hosting') {
+          return <Tag color="orange" style={{ borderRadius: '10px', fontSize: '11px', lineHeight: '18px', border: 'none' }}>机房IP</Tag>;
+        }
+        return val || '—';
+      }
+    },
     { title: 'ASN', dataIndex: 'asn', key: 'asn' },
     { title: '节点 IP', dataIndex: 'ip', key: 'ip' },
     {
@@ -252,29 +306,44 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
       key: 'action',
       render: (_: any, record: any) => {
         const isActive = record.active === true || record.id === data.state?.active_openvpn_node_id;
+        const isTesting = testingNodeId === record.id;
         return (
-          <Button
-            size="small"
-            type={isActive ? 'primary' : 'default'}
-            danger={isActive}
-            loading={actionLoading}
-            onClick={() => {
-              if (isActive) {
-                void action('disconnect');
-              } else {
-                void connectNode(record.id);
-              }
-            }}
-          >
-            {isActive ? '断开' : '连接'}
-          </Button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button
+              size="small"
+              icon={<span>⚡ </span>}
+              onClick={() => void testSingleNode(record.id)}
+              loading={isTesting}
+              disabled={actionLoading}
+              style={{ fontSize: '11px', height: '22px' }}
+            >
+              测试
+            </Button>
+            <Button
+              size="small"
+              type={isActive ? 'primary' : 'default'}
+              danger={isActive}
+              loading={actionLoading && !isTesting}
+              disabled={isTesting}
+              onClick={() => {
+                if (isActive) {
+                  void action('disconnect');
+                } else {
+                  void connectNode(record.id);
+                }
+              }}
+              style={{ height: '22px' }}
+            >
+              {isActive ? '断开' : '连接'}
+            </Button>
+          </div>
         );
       }
     }
   ];
 
   return (
-    <Modal open={open} title="VPNGate" onCancel={onClose} footer={null} width={800} destroyOnHidden>
+    <Modal open={open} title="VPNGate" onCancel={onClose} footer={null} width={820} destroyOnHidden>
       {contextHolder}
       <Spin spinning={loading}>
         <section className="vpngate-panel">
@@ -285,6 +354,56 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
               <Button danger icon={<DisconnectOutlined />} loading={actionLoading} disabled={!data.connected && !data.connecting} onClick={() => action('disconnect')}>关闭连接</Button>
             </div>
           </div>
+
+          {/* 顶层连接进度条卡片 */}
+          {(data.connecting || data.state?.is_connecting === true) && (
+            <div className="vpngate-progress-section" style={{
+              background: 'var(--ant-color-fill-quaternary)',
+              border: '1px solid var(--ant-color-border-secondary)',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              marginTop: '12px',
+              marginBottom: '12px',
+            }}>
+              <div style={{
+                height: '4px',
+                background: 'var(--ant-color-border-secondary)',
+                borderRadius: '2px',
+                width: '100%',
+                overflow: 'hidden',
+                marginBottom: '10px'
+              }}>
+                <div style={{
+                  height: '100%',
+                  background: 'var(--ant-color-primary)',
+                  width: `${data.state?.connection_progress || 0}%`,
+                  transition: 'width 0.4s ease'
+                }}></div>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: '13px', fontWeight: 500 }}>
+                  {data.state?.last_check_message || '正在准备连接...'}
+                </span>
+                <span style={{ fontSize: '12px', color: 'var(--ant-color-text-secondary)' }}>
+                  {data.state?.tun_interface ? `${data.state.tun_interface} · ${data.state.tun_ip || ''}` : '正在获取网卡接口...'}
+                </span>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: 'var(--ant-color-text-placeholder)' }}>
+                <span>进度: {data.state?.connection_progress || 0}%</span>
+                <Button 
+                  danger 
+                  size="small" 
+                  onClick={() => void action('disconnect')} 
+                  loading={actionLoading}
+                  style={{ height: '22px', fontSize: '11px' }}
+                >
+                  取消连接
+                </Button>
+              </div>
+            </div>
+          )}
 
           {data.connected || data.connecting ? (
             <>
