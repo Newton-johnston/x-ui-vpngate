@@ -34,7 +34,7 @@
     "persian-calendar-suite": "^1.5.5",
     "qs": "^6.15.2",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react-dom": "^19.2.7",
     "react-i18next": "^17.0.8",
     "react-router-dom": "^7.15.1",
     "recharts": "^3.8.1",
