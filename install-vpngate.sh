@@ -3,7 +3,7 @@
 # The panel binary itself is provided by a GitHub Release build.
 set -Eeuo pipefail
 
-REPO="Newton-johnston/3x-ui-vpngate"
+REPO="Newton-johnston/x-ui-vpngate"
 INSTALL_DIR="/opt/3x-ui-vpngate"
 RELEASE_URL="https://github.com/${REPO}/releases/latest/download/3x-ui-vpngate-linux-amd64.tar.gz"
 
