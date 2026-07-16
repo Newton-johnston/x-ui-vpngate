@@ -27,9 +27,9 @@ tar -xzf "${archive}" -C "${INSTALL_DIR}"
 # Install the upstream 3x-ui runtime (service unit, Xray core and defaults),
 # then replace only the panel binary with this release's VPNGate-aware build.
 if [[ -n "${XUI_DOMAIN:-}" ]]; then
-  XUI_DOMAIN="${XUI_DOMAIN}" bash <(curl -fsSL https://raw.githubusercontent.com/Teminuosi/3x-ui/main/install.sh)
+  XUI_DOMAIN="${XUI_DOMAIN}" bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/install.sh)
 else
-  XUI_AUTO=1 bash <(curl -fsSL https://raw.githubusercontent.com/Teminuosi/3x-ui/main/install.sh)
+  XUI_AUTO=1 bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/install.sh)
 fi
 install -m 0755 "${INSTALL_DIR}/x-ui" /usr/local/x-ui/x-ui
 install -m 0644 "${INSTALL_DIR}/deploy/aimili-vpngate.service" /etc/systemd/system/aimili-vpngate.service
