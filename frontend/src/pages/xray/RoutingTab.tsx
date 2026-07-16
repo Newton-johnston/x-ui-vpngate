@@ -308,10 +308,10 @@ export default function RoutingTab({
                     ...(isMobile
                       ? [{ key: 'edit', label: <><EditOutlined /> {t('edit')}</>, onClick: () => openEdit(index) }]
                       : []),
-                    { key: 'up', label: <ArrowUpOutlined />, disabled: index === 0, onClick: () => moveUp(index) },
+                    { key: 'up', label: <><ArrowUpOutlined /> {t('moveUp')}</>, disabled: index === 0, onClick: () => moveUp(index) },
                     {
                       key: 'down',
-                      label: <ArrowDownOutlined />,
+                      label: <><ArrowDownOutlined /> {t('moveDown')}</>,
                       disabled: index === rows.length - 1,
                       onClick: () => moveDown(index),
                     },
@@ -446,8 +446,8 @@ export default function RoutingTab({
                       menu={{
                         items: [
                           { key: 'edit', label: <><EditOutlined /> {t('edit')}</>, onClick: () => openEdit(index) },
-                          { key: 'up', label: <ArrowUpOutlined />, disabled: index === 0, onClick: () => moveUp(index) },
-                          { key: 'down', label: <ArrowDownOutlined />, disabled: index === rows.length - 1, onClick: () => moveDown(index) },
+                          { key: 'up', label: <><ArrowUpOutlined /> {t('moveUp')}</>, disabled: index === 0, onClick: () => moveUp(index) },
+                          { key: 'down', label: <><ArrowDownOutlined /> {t('moveDown')}</>, disabled: index === rows.length - 1, onClick: () => moveDown(index) },
                           { key: 'del', danger: true, label: <><DeleteOutlined /> {t('delete')}</>, onClick: () => confirmDelete(index) },
                         ],
                       }}

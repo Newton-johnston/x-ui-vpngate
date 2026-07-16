@@ -240,13 +240,13 @@ export default function OutboundsTab({
                   items: [
                     ...(index > 0
                       ? [
-                          { key: 'top', label: <><VerticalAlignTopOutlined /> Move to top</>, onClick: () => setFirst(index) },
+                          { key: 'top', label: <><VerticalAlignTopOutlined /> {t('moveToTop')}</>, onClick: () => setFirst(index) },
                         ]
                       : []),
-                    { key: 'up', label: <ArrowUpOutlined />, disabled: index === 0, onClick: () => moveUp(index) },
-                    { key: 'down', label: <ArrowDownOutlined />, disabled: index === rows.length - 1, onClick: () => moveDown(index) },
-                    { key: 'reset', label: <><RetweetOutlined /> Reset traffic</>, onClick: () => onResetTraffic(rows[index].tag || '') },
-                    { key: 'del', danger: true, label: <><DeleteOutlined /> Delete</>, onClick: () => confirmDelete(index) },
+                    { key: 'up', label: <><ArrowUpOutlined /> {t('moveUp')}</>, disabled: index === 0, onClick: () => moveUp(index) },
+                    { key: 'down', label: <><ArrowDownOutlined /> {t('moveDown')}</>, disabled: index === rows.length - 1, onClick: () => moveDown(index) },
+                    { key: 'reset', label: <><RetweetOutlined /> {t('resetTraffic')}</>, onClick: () => onResetTraffic(rows[index].tag || '') },
+                    { key: 'del', danger: true, label: <><DeleteOutlined /> {t('delete')}</>, onClick: () => confirmDelete(index) },
                   ],
                 }}
               >
