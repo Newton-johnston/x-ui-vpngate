@@ -1770,6 +1770,19 @@ def maintain_valid_nodes(force: bool = False) -> str:
             active_node = None
             if active_openvpn_node_id:
                 active_node = next((n for n in current_nodes if n.get("id") == active_openvpn_node_id), None)
+
+            # A pinned node is the recovery target in fixed-IP mode. Keep its
+            # last known OpenVPN profile even when the upstream API omits it
+            # from this refresh; otherwise a transient connection failure
+            # permanently removes the only node that fixed mode is allowed
+            # to reconnect to.
+            ui_cfg = load_ui_config()
+            fixed_node_id = (
+                str(ui_cfg.get("fixed_node_id") or "").strip()
+                if ui_cfg.get("routing_mode") == "fixed_ip"
+                else ""
+            )
+            fixed_node = current_by_id.get(fixed_node_id) if fixed_node_id else None
                 
             merged: list[dict[str, Any]] = []
             seen_ids: set[str] = set()
@@ -1777,6 +1790,10 @@ def maintain_valid_nodes(force: bool = False) -> str:
             if active_node:
                 merged.append(active_node)
                 seen_ids.add(active_node["id"])
+
+            if fixed_node and fixed_node.get("id") not in seen_ids:
+                merged.append(fixed_node)
+                seen_ids.add(fixed_node["id"])
                 
             for cand in candidates:
                 if cand["id"] not in seen_ids:
