@@ -134,8 +134,13 @@ lock = threading.RLock()
 maintenance_lock = threading.Lock()
 active_sessions: dict[str, float] = {}
 active_openvpn_process: subprocess.Popen[str] | None = None
+pending_openvpn_process: subprocess.Popen[str] | None = None
 active_openvpn_node_id = ""
 is_connecting = False
+active_connection_cancel_event: threading.Event | None = None
+background_refill_lock = threading.Lock()
+background_refill_cancel_event = threading.Event()
+background_refill_thread: threading.Thread | None = None
 last_active_ping_time = 0.0
 last_active_latency = 0
 
@@ -401,6 +406,10 @@ def clear_active_connection_state(message: str) -> None:
         active_openvpn_node_id="",
         is_connecting=False,
         active_node_latency="无活动连接",
+        proxy_ok=False,
+        proxy_ip="-",
+        proxy_latency_ms=0,
+        proxy_error=message,
         last_check_message=message,
     )
 
@@ -990,7 +999,16 @@ def update_handshake_status(line_lower: str) -> None:
             set_state(active_node_latency=short_status, last_check_message=detailed_desc)
             break
 
-def run_openvpn_until_ready(config_file: str, keep_alive: bool, route_nopull: bool, timeout: int | None = None, dev: str = "tun0") -> tuple[bool, str, subprocess.Popen[str] | None]:
+def run_openvpn_until_ready(
+    config_file: str,
+    keep_alive: bool,
+    route_nopull: bool,
+    timeout: int | None = None,
+    dev: str = "tun0",
+    cancel_event: threading.Event | None = None,
+    track_pending: bool = False,
+) -> tuple[bool, str, subprocess.Popen[str] | None]:
+    global pending_openvpn_process
     limit = timeout if timeout is not None else OPENVPN_TEST_TIMEOUT_SECONDS
     try:
         process = subprocess.Popen(
@@ -1006,6 +1024,10 @@ def run_openvpn_until_ready(config_file: str, keep_alive: bool, route_nopull: bo
         return False, "[错误代码 2001] [ERR_OVPN_CMD_NOT_FOUND] 未找到 openvpn 命令。原因: 系统未安装 openvpn，或 PATH 环境变量不正确。", None
     except OSError as exc:
         return False, f"[错误代码 2002] [ERR_OVPN_START_FAILED] openvpn 启动失败: {exc}。原因: 系统权限不足或配置冲突。", None
+
+    if track_pending:
+        with lock:
+            pending_openvpn_process = process
 
     lines: queue.Queue[str | None] = queue.Queue()
     startup_done = [False]
@@ -1037,6 +1059,9 @@ def run_openvpn_until_ready(config_file: str, keep_alive: bool, route_nopull: bo
     ok = False
     message = "OpenVPN did not complete initialization."
     while time.time() - started < limit:
+        if cancel_event is not None and cancel_event.is_set():
+            message = "连接操作已取消"
+            break
         try:
             line = lines.get(timeout=0.5)
         except queue.Empty:
@@ -1083,6 +1108,10 @@ def run_openvpn_until_ready(config_file: str, keep_alive: bool, route_nopull: bo
     if not keep_alive or not ok:
         stop_process(process)
         process = None
+    if track_pending:
+        with lock:
+            if pending_openvpn_process is not None and pending_openvpn_process.poll() is not None:
+                pending_openvpn_process = None
     return ok, message, process
 
 
@@ -1152,6 +1181,17 @@ def stop_active_openvpn() -> None:
 
 def active_openvpn_running() -> bool:
     return active_openvpn_process is not None and active_openvpn_process.poll() is None
+
+def cancel_pending_connection_attempt() -> None:
+    global pending_openvpn_process
+    with lock:
+        event = active_connection_cancel_event
+        pending = pending_openvpn_process
+        if event is None:
+            return
+        event.set()
+        pending_openvpn_process = None
+    stop_process(pending)
 
 def sort_all_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     available_nodes = sorted(
@@ -1520,6 +1560,7 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
 def auto_switch_node(attempt: int = 0) -> None:
     if attempt >= 3:
         print("[自动切换] 连续切换失败已达 3 次，停止切换以防止主线程死锁，将在后台重新加载节点...", flush=True)
+        schedule_background_refill()
         return
         
     ui_cfg = load_ui_config()
@@ -1573,28 +1614,56 @@ def auto_switch_node(attempt: int = 0) -> None:
             write_json(NODES_FILE, nodes)
         set_state(active_openvpn_node_id="", last_check_message=msg)
         
-        def bg_fetch_and_switch():
+        schedule_background_refill()
+
+def schedule_background_refill() -> bool:
+    global background_refill_thread
+    with background_refill_lock:
+        if background_refill_thread is not None and background_refill_thread.is_alive():
+            return False
+        background_refill_cancel_event.clear()
+
+        def refill_worker() -> None:
+            global background_refill_thread
             try:
-                # 避免所有节点不可用时连续拉取/测试导致 CPU 与 tun 网卡风暴。
-                time.sleep(60)
-                maintain_valid_nodes(force=False)
-                auto_switch_node(attempt + 1)
-            except Exception as e:
-                print(f"[自动切换后台补齐] 获取并测试节点失败: {e}", flush=True)
-        
-        threading.Thread(target=bg_fetch_and_switch, daemon=True).start()
+                for delay in (60, 120, 300):
+                    if background_refill_cancel_event.wait(delay):
+                        return
+                    ui_cfg = load_ui_config()
+                    if not ui_cfg.get("connection_enabled", True):
+                        return
+                    try:
+                        maintain_valid_nodes(force=False)
+                    except Exception as exc:
+                        log_to_json("WARNING", "Main", f"后台节点补齐失败: {exc}")
+                    if active_openvpn_running():
+                        return
+            finally:
+                with background_refill_lock:
+                    if background_refill_thread is threading.current_thread():
+                        background_refill_thread = None
+
+        background_refill_thread = threading.Thread(
+            target=refill_worker,
+            name="vpngate-node-refill",
+            daemon=True,
+        )
+        background_refill_thread.start()
+        return True
 
 def connect_node(node_id: str) -> str:
-    global active_openvpn_process, active_openvpn_node_id, is_connecting
+    global active_openvpn_process, active_openvpn_node_id, is_connecting, active_connection_cancel_event, pending_openvpn_process
     node_id = str(node_id or "").strip()
     if not node_id:
         raise ValueError("Node id is required")
     stopped_existing = False
+    cancel_event = threading.Event()
     with lock:
         if is_connecting:
             print("[连接] 正在建立其他连接中，跳过此请求", flush=True)
             raise RuntimeError("当前已有连接或节点检测任务正在运行，请稍后再试")
         is_connecting = True
+        active_connection_cancel_event = cancel_event
         set_state(is_connecting=True, active_node_latency="正在连接", last_check_message=f"正在初始化连接配置: {node_id}")
         
     try:
@@ -1607,11 +1676,15 @@ def connect_node(node_id: str) -> str:
         
         ui_cfg = load_ui_config()
         validate_node_allowed_by_routing(node, ui_cfg)
+        if cancel_event.is_set():
+            raise RuntimeError("连接操作已取消")
         ui_cfg["connection_enabled"] = True
         if ui_cfg.get("routing_mode") == "fixed_ip":
             ui_cfg["fixed_node_id"] = node_id
         auth_file = DATA_DIR / "ui_auth.json"
         with lock:
+            if cancel_event.is_set():
+                raise RuntimeError("连接操作已取消")
             DATA_DIR.mkdir(exist_ok=True, parents=True)
             write_json(auth_file, ui_cfg)
         
@@ -1628,7 +1701,13 @@ def connect_node(node_id: str) -> str:
             raise RuntimeError(f"Failed to write configuration: {e}")
 
         set_state(active_node_latency="启动核心", last_check_message="正在启动 OpenVPN Core 核心服务并建立连接...")
-        ok, message, process = run_openvpn_until_ready(str(node["config_file"]), keep_alive=True, route_nopull=True)
+        ok, message, process = run_openvpn_until_ready(
+            str(node["config_file"]), keep_alive=True, route_nopull=True,
+            cancel_event=cancel_event, track_pending=True,
+        )
+        if cancel_event.is_set():
+            stop_process(process)
+            raise RuntimeError("连接操作已取消")
         if not ok or process is None:
             try:
                 if config_path.exists():
@@ -1678,23 +1757,24 @@ def connect_node(node_id: str) -> str:
         
         set_state(last_check_message="正在测试本地代理出站联通性与出口 IP...")
         res = check_proxy_health()
-        if res["ok"]:
-            set_state(
-                proxy_ok=True,
-                proxy_ip=res["ip"],
-                proxy_latency_ms=res["latency_ms"],
-                proxy_error=""
-            )
-        else:
-            set_state(
-                proxy_ok=False,
-                proxy_ip="-",
-                proxy_latency_ms=0,
-                proxy_error=res.get("error", "未知错误")
-            )
+        if cancel_event.is_set():
+            raise RuntimeError("连接操作已取消")
+        health_error = proxy_health_error(res)
+        if health_error:
+            raise RuntimeError(health_error)
             
         latency_str = f"{last_active_latency} ms" if last_active_latency > 0 else "检测超时"
-        set_state(active_openvpn_node_id=node_id, is_connecting=False, last_check_message=f"Connected {node_id}", active_node_latency=latency_str)
+        set_state(
+            active_openvpn_node_id=node_id,
+            is_connecting=False,
+            last_check_message=f"Connected {node_id}",
+            active_node_latency=latency_str,
+            proxy_ok=True,
+            proxy_ip=res["ip"],
+            proxy_latency_ms=res["latency_ms"],
+            proxy_error="",
+        )
+        background_refill_cancel_event.set()
         log_to_json("INFO", "VPN", f"节点 {node_id} 连接成功，出口网卡 tun0 已启用")
         return f"Connected {node_id}"
     except Exception as exc:
@@ -1705,6 +1785,9 @@ def connect_node(node_id: str) -> str:
         raise
     finally:
         with lock:
+            if active_connection_cancel_event is cancel_event:
+                active_connection_cancel_event = None
+            pending_openvpn_process = None
             is_connecting = False
 
 def maintain_valid_nodes(force: bool = False) -> str:
@@ -4989,6 +5072,11 @@ def check_proxy_health() -> dict[str, Any]:
     except Exception as e:
         return {"ok": False, "error": f"出口连接测试异常: {e}"}
 
+def proxy_health_error(result: dict[str, Any]) -> str | None:
+    if result.get("ok"):
+        return None
+    return f"VPN 隧道已建立但代理出口不可用: {result.get('error', '未知错误')}"
+
 def background_proxy_checker() -> None:
     global last_checker_heartbeat, is_connecting
     time.sleep(30)
@@ -5654,6 +5742,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif effective_path == "/api/disconnect":
             try:
+                background_refill_cancel_event.set()
+                cancel_pending_connection_attempt()
                 ui_cfg = load_ui_config()
                 ui_cfg["connection_enabled"] = False
                 auth_file = DATA_DIR / "ui_auth.json"
@@ -5670,7 +5760,15 @@ class Handler(BaseHTTPRequestHandler):
                 global last_active_ping_time, last_active_latency
                 last_active_ping_time = 0.0
                 last_active_latency = 0
-                set_state(active_openvpn_node_id="", last_check_message="手动断开连接", active_node_latency="无活动连接")
+                set_state(
+                    active_openvpn_node_id="",
+                    last_check_message="手动断开连接",
+                    active_node_latency="无活动连接",
+                    proxy_ok=False,
+                    proxy_ip="-",
+                    proxy_latency_ms=0,
+                    proxy_error="",
+                )
                 self.send_json({"ok": True})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
