@@ -438,8 +438,11 @@ func (s *SubJsonService) genHy(inbound *model.Inbound, newStream map[string]any,
 	}
 	newStream["hysteriaSettings"] = outHyStream
 
-	if finalmask, ok := hyStream["finalmask"].(map[string]any); ok {
+	if finalmask, ok := stream["finalmask"].(map[string]any); ok {
 		newStream["finalmask"] = finalmask
+	}
+	if tlsSettings, ok := newStream["tlsSettings"].(map[string]any); ok {
+		tlsSettings["alpn"] = []string{"h3"}
 	}
 
 	newStream["network"] = "hysteria"

@@ -155,6 +155,7 @@ export const INBOUND_PRESETS: readonly InboundPreset[] = [
       const tls = TlsStreamSettingsSchema.parse({}) as Record<string, unknown>;
       tls.serverName = (domain ?? '').trim();
       tls.certificates = [emptyFileCert()];
+      tls.alpn = ['h3'];
       return {
         protocol: 'hysteria',
         port: randomPort(),

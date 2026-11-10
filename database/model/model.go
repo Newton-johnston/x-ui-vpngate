@@ -220,6 +220,7 @@ func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 	listen = fmt.Sprintf("\"%v\"", listen)
 	protocol := string(i.Protocol)
 	settings := i.Settings
+	streamSettings := i.StreamSettings
 	switch i.Protocol {
 	case Shadowsocks:
 		if healed, ok := HealShadowsocksClientMethods(settings); ok {
@@ -233,16 +234,44 @@ func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 		if stripped, ok := StripVlessInboundEncryption(settings); ok {
 			settings = stripped
 		}
+	case Hysteria:
+		if healed, ok := HealHysteriaALPN(streamSettings); ok {
+			streamSettings = healed
+		}
 	}
 	return &xray.InboundConfig{
 		Listen:         json_util.RawMessage(listen),
 		Port:           i.Port,
 		Protocol:       protocol,
 		Settings:       json_util.RawMessage(settings),
-		StreamSettings: json_util.RawMessage(i.StreamSettings),
+		StreamSettings: json_util.RawMessage(streamSettings),
 		Tag:            i.Tag,
 		Sniffing:       json_util.RawMessage(i.Sniffing),
 	}
+}
+
+// HealHysteriaALPN makes existing Hysteria inbounds use QUIC's required h3 ALPN.
+func HealHysteriaALPN(streamSettings string) (string, bool) {
+	if streamSettings == "" {
+		return streamSettings, false
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(streamSettings), &parsed); err != nil {
+		return streamSettings, false
+	}
+	tls, ok := parsed["tlsSettings"].(map[string]any)
+	if !ok || tls == nil {
+		return streamSettings, false
+	}
+	if alpn, ok := tls["alpn"].([]any); ok && len(alpn) == 1 && alpn[0] == "h3" {
+		return streamSettings, false
+	}
+	tls["alpn"] = []string{"h3"}
+	out, err := json.MarshalIndent(parsed, "", "  ")
+	if err != nil {
+		return streamSettings, false
+	}
+	return string(out), true
 }
 
 func StripVmessClientSecurity(settings string) (string, bool) {

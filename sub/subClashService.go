@@ -251,23 +251,10 @@ func (s *SubClashService) buildHysteriaProxy(inbound *model.Inbound, client mode
 		if serverName, ok := tlsSettings["serverName"].(string); ok && serverName != "" {
 			proxy["sni"] = serverName
 		}
-		if alpnList, ok := tlsSettings["alpn"].([]any); ok && len(alpnList) > 0 {
-			out := make([]string, 0, len(alpnList))
-			for _, a := range alpnList {
-				if s, ok := a.(string); ok && s != "" {
-					out = append(out, s)
-				}
-			}
-			if len(out) > 0 {
-				proxy["alpn"] = out
-			}
-		}
+		proxy["alpn"] = []string{"h3"}
 		if inner, ok := tlsSettings["settings"].(map[string]any); ok {
 			if insecure, ok := inner["allowInsecure"].(bool); ok && insecure {
 				proxy["skip-cert-verify"] = true
-			}
-			if fp, ok := inner["fingerprint"].(string); ok && fp != "" {
-				proxy["client-fingerprint"] = fp
 			}
 		}
 	}

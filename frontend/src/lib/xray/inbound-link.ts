@@ -575,15 +575,8 @@ export interface GenHysteriaLinkInput {
   clientAuth: string;
 }
 
-// Hysteria share link: hysteria://<auth>@<host>:<port>?<query>#<remark>.
-// The URL scheme is "hysteria2" when settings.version === 2 (hysteria v2
-// AKA hysteria2), "hysteria" otherwise. Salamander obfuscation pulls its
-// password from finalmask.udp[type=salamander] when present; the broader
-// finalmask payload still rides under `fm` like the other links.
-//
-// Note: legacy genHysteriaLink reads stream.tls.settings.allowInsecure,
-// which isn't a field on TlsStreamSettings.Settings — the guard is always
-// false. We omit the `insecure` param here to stay byte-stable.
+// Hysteria share links use the portable h3 and salamander parameters. The
+// private Xray fm blob and TCP-TLS uTLS fingerprint are not standard Hy2 URL fields.
 export function genHysteriaLink(input: GenHysteriaLinkInput): string {
   const {
     inbound,
@@ -603,8 +596,8 @@ export function genHysteriaLink(input: GenHysteriaLinkInput): string {
   const params = new URLSearchParams();
   params.set('security', 'tls');
   const tls = stream.tlsSettings;
-  if (tls.settings.fingerprint.length > 0) params.set('fp', tls.settings.fingerprint);
-  if (tls.alpn.length > 0) params.set('alpn', tls.alpn.join(','));
+  params.set('alpn', 'h3');
+  if (tls.settings.allowInsecure) params.set('insecure', '1');
   if (tls.settings.echConfigList.length > 0) params.set('ech', tls.settings.echConfigList);
   if (tls.serverName.length > 0) params.set('sni', tls.serverName);
 
@@ -617,8 +610,6 @@ export function genHysteriaLink(input: GenHysteriaLinkInput): string {
       params.set('obfs-password', obfsPassword);
     }
   }
-
-  applyFinalMaskToParams(stream.finalmask, params);
 
   const url = new URL(`${scheme}://${clientAuth}@${address}:${port}`);
   for (const [key, value] of params) url.searchParams.set(key, value);

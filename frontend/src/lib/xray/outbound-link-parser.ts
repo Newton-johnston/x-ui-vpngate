@@ -358,9 +358,20 @@ export function parseShadowsocksLink(link: string): Raw | null {
   }
   const atIndex = linkNoHash.indexOf('@');
   if (atIndex >= 0) {
-    try { userInfo = Base64.decode(linkNoHash.slice('ss://'.length, atIndex)); }
-    catch { userInfo = linkNoHash.slice('ss://'.length, atIndex); }
-    const hostPort = linkNoHash.slice(atIndex + 1);
+    const rawUserInfo = linkNoHash.slice('ss://'.length, atIndex);
+    try { userInfo = Base64.decode(rawUserInfo); }
+    catch {
+      let plain: string;
+      try { plain = decodeURIComponent(rawUserInfo); } catch { plain = rawUserInfo; }
+      const b64 = plain.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+      let decoded: string | null = null;
+      if (/^[A-Za-z0-9+/]+$/.test(b64)) {
+        try { decoded = Base64.decode(b64 + '='.repeat((4 - (b64.length % 4)) % 4)); } catch { /* plaintext SIP002 */ }
+      }
+      const sep = decoded?.indexOf(':') ?? -1;
+      userInfo = sep > 0 && /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(decoded!.slice(0, sep)) ? decoded! : plain;
+    }
+    const hostPort = linkNoHash.slice(atIndex + 1).replace(/\/?\?.*$/, '');
     const colon = hostPort.lastIndexOf(':');
     if (colon < 0) return null;
     host = hostPort.slice(0, colon);
@@ -416,6 +427,10 @@ export function parseHysteria2Link(link: string): Raw | null {
       pinnedPeerCertSha256: params.get('pinSHA256') ?? '',
     },
   };
+  const obfsPassword = params.get('obfs-password');
+  if (params.get('obfs') === 'salamander' && obfsPassword) {
+    stream.finalmask = { udp: [{ type: 'salamander', settings: { password: obfsPassword } }] };
+  }
   return {
     protocol: 'hysteria',
     tag: decodeRemark(url),
