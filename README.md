@@ -60,6 +60,15 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate
 x-ui            # 打开管理菜单，菜单里有"更新""卸载"等选项
 ```
 
+旧版安装如果菜单中的“2. Update”仍指向上游仓库，请先将管理菜单切换到本仓库一次：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/x-ui.sh -o /usr/bin/x-ui
+chmod +x /usr/bin/x-ui
+```
+
+之后菜单中的“2. Update”会从本仓库的最新 Release 升级 VPNGate 版本。
+
 ---
 
 ## 本分支相比原版做了哪些改动

@@ -127,7 +127,7 @@ update() {
         fi
         return 0
     fi
-    bash <(curl -Ls https://raw.githubusercontent.com/Teminuosi/3x-ui/main/update.sh)
+    bash <(curl -fsSL https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/update-vpngate.sh)
     if [[ $? == 0 ]]; then
         LOGI "Update is complete, Panel has automatically restarted "
         before_show_menu
@@ -145,7 +145,7 @@ update_menu() {
         return 0
     fi
 
-    curl -fLRo /usr/bin/x-ui https://raw.githubusercontent.com/Teminuosi/3x-ui/main/x-ui.sh
+    curl -fLRo /usr/bin/x-ui https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/x-ui.sh
     chmod +x ${xui_folder}/x-ui.sh
     chmod +x /usr/bin/x-ui
 
@@ -666,7 +666,7 @@ enable_bbr() {
 }
 
 update_shell() {
-    curl -fLRo /usr/bin/x-ui -z /usr/bin/x-ui https://github.com/Teminuosi/3x-ui/raw/main/x-ui.sh
+    curl -fLRo /usr/bin/x-ui -z /usr/bin/x-ui https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/x-ui.sh
     if [[ $? != 0 ]]; then
         echo ""
         LOGE "Failed to download script, Please check whether the machine can connect Github"

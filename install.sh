@@ -1079,7 +1079,7 @@ install_x-ui() {
             exit 1
         fi
     fi
-    curl -4fLRo /usr/bin/x-ui-temp https://raw.githubusercontent.com/Teminuosi/3x-ui/main/x-ui.sh
+    curl -4fLRo /usr/bin/x-ui-temp https://raw.githubusercontent.com/Newton-johnston/x-ui-vpngate/main/x-ui.sh
     if [[ $? -ne 0 ]]; then
         echo -e "${red}Failed to download x-ui.sh${plain}"
         exit 1
