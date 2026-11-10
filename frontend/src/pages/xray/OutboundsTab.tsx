@@ -513,7 +513,6 @@ export default function OutboundsTab({
           onClose={() => setVPNGateOpen(false)}
           outbounds={outbounds}
           routing={templateSettings?.routing}
-          onConfirm={onConfirm}
         />
       </Space>
     </>

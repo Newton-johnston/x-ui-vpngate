@@ -28,6 +28,10 @@ jobs:
         run: |
           npm ci
           npm run build
+      - name: Stamp version from release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: printf '%s' "${GITHUB_REF_NAME#v}" > config/version
       - name: Build Linux binary
         # SQLite uses github.com/mattn/go-sqlite3 and therefore needs CGO.
         # Build on the Linux runner so the resulting binary has a native

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { Alert, Button, Form, Input, Modal, Spin, Tag, message, Collapse, Radio, Switch, Table } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import { DisconnectOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 
 import { HttpUtil } from '@/utils';
@@ -8,9 +9,43 @@ import './VPNGateModal.css';
 interface VPNGateModalProps {
   open: boolean;
   onClose: () => void;
-  outbounds?: Record<string, any>[];
-  routing?: Record<string, any>;
-  onConfirm?: () => void;
+  outbounds?: VPNGateOutbound[];
+  routing?: VPNGateRouting;
+}
+
+interface VPNGateOutbound {
+  tag?: string;
+  settings?: { servers?: Array<{ address?: string; port?: number }> };
+}
+
+interface VPNGateRouting {
+  rules?: Array<{ outboundTag?: string; inboundTag?: string | string[] }>;
+}
+
+interface VPNGateNode {
+  id: string;
+  country?: string;
+  location?: string;
+  probe_status?: string;
+  probe_message?: string;
+  latency_ms?: number | string;
+  ip_type?: string;
+  asn?: string;
+  ip?: string;
+  active?: boolean;
+}
+
+interface VPNGateState {
+  force_country?: string;
+  routing_ip_type?: string;
+  active_openvpn_node_id?: string;
+  is_connecting?: boolean;
+  connection_progress?: number;
+  last_check_message?: string;
+  tun_interface?: string;
+  tun_ip?: string;
+  routing_mode?: string;
+  connection_enabled?: boolean;
 }
 
 interface VPNGateOverview {
@@ -26,8 +61,8 @@ interface VPNGateOverview {
   totalNodes: number;
   failedNodes: number;
   message: string;
-  nodes?: Array<Record<string, any>>;
-  state?: Record<string, any>;
+  nodes?: VPNGateNode[];
+  state?: VPNGateState;
 }
 
 const EMPTY: VPNGateOverview = {
@@ -35,7 +70,7 @@ const EMPTY: VPNGateOverview = {
   ipType: '', asn: '', availableNodes: 0, totalNodes: 0, failedNodes: 0, message: '',
 };
 
-export default function VPNGateModal({ open, onClose, outbounds, routing, onConfirm }: VPNGateModalProps) {
+export default function VPNGateModal({ open, onClose, outbounds, routing }: VPNGateModalProps) {
   const [data, setData] = useState<VPNGateOverview>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -76,7 +111,7 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
     const initialHost = server?.address || '127.0.0.1';
     const initialPort = server?.port || 7928;
 
-    const vpRule = routing?.rules?.find((r: any) => r.outboundTag === 'vpngate');
+    const vpRule = routing?.rules?.find((rule) => rule.outboundTag === 'vpngate');
     const initialInboundTags = Array.isArray(vpRule?.inboundTag)
       ? vpRule.inboundTag.join(', ')
       : (vpRule?.inboundTag || '');
@@ -122,7 +157,7 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
   async function testSingleNode(id: string) {
     setTestingNodeId(id);
     try {
-      const result = await HttpUtil.post<any>('/panel/vpngate/test_node', { id }, { silent: true });
+      const result = await HttpUtil.post<{ node?: VPNGateNode }>('/panel/vpngate/test_node', { id }, { silent: true });
       if (result && !result.success) {
         const msgStr = result.msg || '';
         if (msgStr.includes('当前已有连接') || msgStr.includes('409') || msgStr.includes('CONFLICT') || msgStr.includes('failed')) {
@@ -200,7 +235,7 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
 
   // 按国家对节点进行前端 Group By 聚合
   const countryGroups = useMemo(() => {
-    const groups: Record<string, { nodes: any[]; count: number }> = {};
+    const groups: Record<string, { nodes: VPNGateNode[]; count: number }> = {};
     (data.nodes || []).forEach((node) => {
       let country = node.country || node.location || 'Unknown';
       // 英文国家汉化映射，让列表更加美观接地气
@@ -291,13 +326,13 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
   const latency = data.latency == null || data.latency === '' ? '—' : `${data.latency} ms`;
 
   // 定义节点 Table 表格列
-  const columns = [
-    { title: '国家', dataIndex: 'country', key: 'country', render: (val: string, record: any) => val || record.location || '—' },
+  const columns: ColumnsType<VPNGateNode> = [
+    { title: '国家', dataIndex: 'country', key: 'country', render: (val: string, record) => val || record.location || '—' },
     {
       title: '延迟',
       dataIndex: 'latency_ms',
       key: 'latency',
-      render: (val: any) => {
+      render: (val: number | string | undefined) => {
         if (val == null || val === '') return <span style={{ color: 'var(--ant-color-text-placeholder)' }}>—</span>;
         const num = Number(val);
         let color = 'var(--ant-color-text-secondary)';
@@ -327,7 +362,7 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: any) => {
+      render: (_value, record) => {
         const isActive = record.active === true || record.id === data.state?.active_openvpn_node_id;
         const isTesting = testingNodeId === record.id;
         return (
@@ -371,7 +406,7 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
       <Spin spinning={loading}>
         <section className="vpngate-panel">
           <div className="vpngate-head">
-            <div>当前状态　<Tag color={statusColor}>{status}</Tag>　<Tag>{data.autoConnect ? '自动连接' : '已暂停自动连接'}</Tag></div>
+            <div>当前状态 <Tag color={statusColor}>{status}</Tag> <Tag>{data.autoConnect ? '自动连接' : '已暂停自动连接'}</Tag></div>
             <div className="vpngate-actions">
               <Button icon={<ReloadOutlined />} loading={actionLoading} onClick={() => action('refresh')}>重新获取</Button>
               <Button danger icon={<DisconnectOutlined />} loading={actionLoading} disabled={!data.connected && !data.connecting} onClick={() => action('disconnect')}>关闭连接</Button>
@@ -457,7 +492,7 @@ export default function VPNGateModal({ open, onClose, outbounds, routing, onConf
               {/* 第一级高级控制：连接模式与自动切换 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
-                  连接模式　
+                  连接模式
                   <Radio.Group
                     value={data.state?.routing_mode || 'auto'}
                     onChange={(e) => void changeRoutingMode(e.target.value as 'auto' | 'fixed_ip')}
